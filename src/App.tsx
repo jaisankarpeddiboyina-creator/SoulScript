@@ -8,6 +8,8 @@ import { Header } from './components/Header';
 import { ToastContainer } from './components/Toast';
 import { Explore } from './pages/Explore';
 import { Generate } from './pages/Generate';
+import { Playlists } from './pages/Playlists';
+import { PlaylistModal } from './components/PlaylistModal';
 import { motion, AnimatePresence } from 'motion/react';
 
 function AppContent() {
@@ -23,7 +25,7 @@ function AppContent() {
       
       <main className="max-w-7xl mx-auto px-4 pb-32 md:pb-8">
         <AnimatePresence mode="wait">
-          {activeTab === 'explore' ? (
+          {activeTab === 'explore' && (
             <motion.div
               key="explore"
               initial={{ opacity: 0, x: -20 }}
@@ -33,7 +35,8 @@ function AppContent() {
             >
               <Explore />
             </motion.div>
-          ) : (
+          )}
+          {activeTab === 'generate' && (
             <motion.div
               key="generate"
               initial={{ opacity: 0, x: 20 }}
@@ -44,8 +47,23 @@ function AppContent() {
               <Generate />
             </motion.div>
           )}
+          {activeTab === 'playlists' && (
+            <motion.div
+              key="playlists"
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -20 }}
+              transition={{ duration: 0.3 }}
+            >
+              <Playlists />
+            </motion.div>
+          )}
         </AnimatePresence>
       </main>
+
+      {/* Global Modals & Notifications */}
+      <PlaylistModal />
+      <ToastContainer />
     </div>
   );
 }

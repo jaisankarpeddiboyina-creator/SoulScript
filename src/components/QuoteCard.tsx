@@ -16,7 +16,8 @@ import {
   Facebook,
   Instagram,
   Link2,
-  Check
+  Check,
+  Library
 } from 'lucide-react';
 import html2canvas from 'html2canvas';
 
@@ -36,9 +37,28 @@ const captureQuoteCard = async (cardRef: React.RefObject<HTMLDivElement | null>)
       // Remove backdrop-filter as it's not supported and can cause color parsing issues
       const elements = clonedDoc.querySelectorAll('*');
       elements.forEach((el) => {
-        const style = (el as HTMLElement).style;
+        const htmlElement = el as HTMLElement;
+        const style = htmlElement.style;
+        
         if (style.backdropFilter) style.backdropFilter = 'none';
         if (style.filter && style.filter.includes('blur')) style.filter = 'none';
+        
+        // html2canvas fails on oklch() and oklab() colors.
+        // We'll iterate through computed styles and replace problematic ones with simple fallbacks 
+        // if they still exist in the cloned document.
+        const computed = window.getComputedStyle(el);
+        const colorProps = ['color', 'backgroundColor', 'borderColor', 'boxShadow', 'fill', 'stroke'];
+        
+        colorProps.forEach(prop => {
+          const val = computed.getPropertyValue(prop);
+          if (val && (val.includes('oklch') || val.includes('oklab'))) {
+            // Force a safe fallback for the capture
+            if (prop === 'boxShadow') htmlElement.style.boxShadow = 'none';
+            else if (prop === 'backgroundColor') htmlElement.style.backgroundColor = 'rgba(0,0,0,0)';
+            else if (prop === 'color') htmlElement.style.color = '#ffffff';
+            else (htmlElement.style as any)[prop] = 'inherit';
+          }
+        });
       });
     },
     logging: false,
@@ -221,6 +241,11 @@ export interface QuoteCardProps {
   selectionMode?: boolean;
   isSelected?: boolean;
   onToggleSelect?: () => void;
+  customMenuOptions?: {
+    label: string;
+    icon: React.ReactNode;
+    onClick: () => void;
+  }[];
   visibility?: {
     showQuote: boolean;
     showAuthor: boolean;
@@ -248,6 +273,7 @@ export const QuoteCard = forwardRef<QuoteCardHandle, QuoteCardProps>(({
   selectionMode,
   isSelected,
   onToggleSelect,
+  customMenuOptions,
   visibility = {
     showQuote: true,
     showAuthor: true,
@@ -255,7 +281,7 @@ export const QuoteCard = forwardRef<QuoteCardHandle, QuoteCardProps>(({
     showQuoteMarks: true
   }
 }, ref) => {
-  const { addToast, setActiveTab, setGeneratePreloadedQuote } = useApp();
+  const { addToast, setActiveTab, setGeneratePreloadedQuote, setPlaylistModalQuote } = useApp();
   const cardRef = useRef<HTMLDivElement>(null);
   const [imageLoaded, setImageLoaded] = useState(false);
   const [downloading, setDownloading] = useState(false);
@@ -275,6 +301,18 @@ export const QuoteCard = forwardRef<QuoteCardHandle, QuoteCardProps>(({
     sharing,
     downloading
   }), [sharing, downloading]);
+
+  const handleAddToPlaylist = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setShowMenu(false);
+    setPlaylistModalQuote({
+      id: quote._id || Date.now().toString(),
+      quoteText: quote.content || "",
+      author: quote.author || "",
+      category: (category as string) || "General",
+      imageUrl: image || ""
+    });
+  };
 
   React.useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -537,38 +575,67 @@ export const QuoteCard = forwardRef<QuoteCardHandle, QuoteCardProps>(({
           <motion.div
             initial={{ opacity: 0, y: -10, scale: 0.95 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
-            className="absolute right-0 mt-2 w-48 bg-[var(--dropdown-bg)] border border-[var(--border-color)] rounded-xl shadow-2xl overflow-hidden backdrop-blur-xl z-20"
+            className="absolute right-0 mt-2 w-52 bg-[var(--dropdown-bg)] border border-[var(--border-color)] rounded-xl shadow-2xl overflow-hidden backdrop-blur-xl z-20"
           >
-            <button
-              onClick={handleEditInGenerate}
-              className="w-full flex items-center gap-3 px-4 py-3 text-sm font-medium text-[var(--text-primary)] hover:bg-indigo-500/10 transition-colors border-b border-[var(--border-color)]"
-            >
-              <Palette size={16} className="text-pink-400" />
-              Edit in Generate
-            </button>
-            <button
-              onClick={handleCopy}
-              className="w-full flex items-center gap-3 px-4 py-3 text-sm font-medium text-[var(--text-primary)] hover:bg-indigo-500/10 transition-colors border-b border-[var(--border-color)]"
-            >
-              <Copy size={16} className="text-indigo-400" />
-              Copy Quote
-            </button>
-            <button
-              onClick={handleShare}
-              disabled={sharing}
-              className="w-full flex items-center gap-3 px-4 py-3 text-sm font-medium text-[var(--text-primary)] hover:bg-indigo-500/10 transition-colors border-b border-[var(--border-color)]"
-            >
-              {sharing ? <Loader2 size={16} className="text-purple-400 animate-spin" /> : <Share2 size={16} className="text-purple-400" />}
-              {sharing ? 'Sharing...' : 'Share'}
-            </button>
-            <button
-              onClick={() => handleDownload()}
-              disabled={downloading}
-              className="w-full flex items-center gap-3 px-4 py-3 text-sm font-medium text-[var(--text-primary)] hover:bg-indigo-500/10 transition-colors"
-            >
-              <Download size={16} className="text-emerald-400" />
-              {downloading ? 'Saving...' : 'Download'}
-            </button>
+            {customMenuOptions ? (
+              customMenuOptions.map((opt, i) => (
+                <button
+                  key={i}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    opt.onClick();
+                    setShowMenu(false);
+                  }}
+                  className={cn(
+                    "w-full flex items-center gap-3 px-4 py-3 text-sm font-medium text-[var(--text-primary)] hover:bg-white/5 transition-colors",
+                    i < customMenuOptions.length - 1 && "border-b border-[var(--border-color)]"
+                  )}
+                >
+                  {opt.icon}
+                  {opt.label}
+                </button>
+              ))
+            ) : (
+              <>
+                <button
+                  onClick={handleEditInGenerate}
+                  className="w-full flex items-center gap-3 px-4 py-3 text-sm font-medium text-[var(--text-primary)] hover:bg-indigo-500/10 transition-colors border-b border-[var(--border-color)]"
+                >
+                  <Palette size={16} className="text-pink-400" />
+                  Edit in Generate
+                </button>
+                <button
+                  onClick={handleAddToPlaylist}
+                  className="w-full flex items-center gap-3 px-4 py-3 text-sm font-medium text-[var(--text-primary)] hover:bg-indigo-500/10 transition-colors border-b border-[var(--border-color)]"
+                >
+                  <Library size={16} className="text-indigo-400" />
+                  Add to Playlist
+                </button>
+                <button
+                  onClick={handleCopy}
+                  className="w-full flex items-center gap-3 px-4 py-3 text-sm font-medium text-[var(--text-primary)] hover:bg-indigo-500/10 transition-colors border-b border-[var(--border-color)]"
+                >
+                  <Copy size={16} className="text-slate-400" />
+                  Copy Quote
+                </button>
+                <button
+                  onClick={handleShare}
+                  disabled={sharing}
+                  className="w-full flex items-center gap-3 px-4 py-3 text-sm font-medium text-[var(--text-primary)] hover:bg-indigo-500/10 transition-colors border-b border-[var(--border-color)]"
+                >
+                  {sharing ? <Loader2 size={16} className="text-purple-400 animate-spin" /> : <Share2 size={16} className="text-purple-400" />}
+                  {sharing ? 'Sharing...' : 'Share'}
+                </button>
+                <button
+                  onClick={() => handleDownload()}
+                  disabled={downloading}
+                  className="w-full flex items-center gap-3 px-4 py-3 text-sm font-medium text-[var(--text-primary)] hover:bg-indigo-500/10 transition-colors"
+                >
+                  <Download size={16} className="text-emerald-400" />
+                  {downloading ? 'Saving...' : 'Download'}
+                </button>
+              </>
+            )}
           </motion.div>
         )}
       </div>

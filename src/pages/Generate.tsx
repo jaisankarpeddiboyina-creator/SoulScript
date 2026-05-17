@@ -18,7 +18,6 @@ import { QuoteCard, QuoteCardHandle } from '../components/QuoteCard';
 import { QuoteCategory, Quote } from '../types';
 import { CATEGORIES, CATEGORY_MAP, FALLBACK_QUOTES } from '../constants';
 import { cn } from '../lib/utils';
-import html2canvas from 'html2canvas';
 
 const categoryImageKeywords: Record<string, string[]> = {
   love:         ["couple,sunset", "romance,flowers", "love,beach", "heart,nature", "together,warm", "kiss,golden"],

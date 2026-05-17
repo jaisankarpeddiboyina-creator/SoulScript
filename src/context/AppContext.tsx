@@ -15,8 +15,8 @@ interface ExploreFilters {
 }
 
 interface AppContextType {
-  activeTab: 'explore' | 'generate';
-  setActiveTab: (tab: 'explore' | 'generate') => void;
+  activeTab: 'explore' | 'generate' | 'playlists';
+  setActiveTab: (tab: 'explore' | 'generate' | 'playlists') => void;
   theme: 'dark' | 'light';
   toggleTheme: () => void;
   
@@ -46,12 +46,16 @@ interface AppContextType {
   // Cache
   quoteCache: React.MutableRefObject<Record<string, { quotes: Quote[]; pages: number }>>;
   imageCache: React.MutableRefObject<Record<string, string[]>>;
+  
+  // Playlist Modal
+  playlistModalQuote: { id: string; quoteText: string; author: string; category: string; imageUrl: string } | null;
+  setPlaylistModalQuote: (quote: { id: string; quoteText: string; author: string; category: string; imageUrl: string } | null) => void;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
 
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [activeTab, setActiveTab] = useState<'explore' | 'generate'>('explore');
+  const [activeTab, setActiveTab] = useState<'explore' | 'generate' | 'playlists'>('explore');
   const [theme, setTheme] = useState<'dark' | 'light'>(() => {
     return (localStorage.getItem('soulscript-theme') as 'dark' | 'light') || 'dark';
   });
@@ -68,6 +72,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [isSelectMode, setIsSelectMode] = useState(false);
   const [filteredCount, setFilteredCount] = useState(0);
   const [generatePreloadedQuote, setGeneratePreloadedQuote] = useState<{ content: string; author: string; category: QuoteCategory; imageUrl: string } | null>(null);
+  const [playlistModalQuote, setPlaylistModalQuote] = useState<{ id: string; quoteText: string; author: string; category: string; imageUrl: string } | null>(null);
 
   const quoteCache = useRef<Record<string, { quotes: Quote[]; pages: number }>>({});
   const imageCache = useRef<Record<string, string[]>>({});
@@ -133,7 +138,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         generatePreloadedQuote,
         setGeneratePreloadedQuote,
         quoteCache,
-        imageCache
+        imageCache,
+        playlistModalQuote,
+        setPlaylistModalQuote
       }}
     >
       {children}

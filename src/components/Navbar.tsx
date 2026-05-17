@@ -1,6 +1,6 @@
 import React from 'react';
 import { motion } from 'motion/react';
-import { Compass, Sparkles, Settings as SettingsIcon, Moon, Sun } from 'lucide-react';
+import { Compass, Sparkles, Settings as SettingsIcon, Moon, Sun, Library } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { cn } from '../lib/utils';
 
@@ -56,6 +56,25 @@ export const Navbar: React.FC = () => {
                 />
               )}
             </button>
+
+            <button
+              onClick={() => setActiveTab('playlists')}
+              className={cn(
+                "relative px-4 py-2 text-sm font-medium transition-colors rounded-full",
+                activeTab === 'playlists' ? "text-[var(--text-primary)]" : "text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
+              )}
+            >
+              <div className="flex items-center gap-2">
+                <Library size={18} />
+                <span>Playlists</span>
+              </div>
+              {activeTab === 'playlists' && (
+                <motion.div
+                  layoutId="nav-underline"
+                  className="absolute -bottom-[2px] left-4 right-4 h-[2px] gradient-bg rounded-full"
+                />
+              )}
+            </button>
           </div>
 
           <div className="flex items-center gap-2">
@@ -92,6 +111,16 @@ export const Navbar: React.FC = () => {
           >
             <Sparkles size={24} />
             <span className="text-[10px] font-black uppercase tracking-widest">Generate</span>
+          </button>
+          <button
+            onClick={() => setActiveTab('playlists')}
+            className={cn(
+              "flex flex-col items-center gap-1 transition-all",
+              activeTab === 'playlists' ? "text-indigo-400 scale-110" : "text-gray-500"
+            )}
+          >
+            <Library size={24} />
+            <span className="text-[10px] font-black uppercase tracking-widest">Playlist</span>
           </button>
         </div>
       </div>
