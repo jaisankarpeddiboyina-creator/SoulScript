@@ -1,5 +1,5 @@
 import React from 'react';
-import { Search, X, LayoutGrid, Smartphone } from 'lucide-react';
+import { Search, X, LayoutGrid, Smartphone, CheckSquare } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { CATEGORIES, SORT_OPTIONS } from '../constants';
 import { cn } from '../lib/utils';
@@ -15,6 +15,8 @@ export const ExploreFilterGrid: React.FC = () => {
     filteredCount,
     viewMode,
     setViewMode,
+    isSelectMode,
+    setIsSelectMode,
     activeTab
   } = useApp();
 
@@ -105,6 +107,17 @@ export const ExploreFilterGrid: React.FC = () => {
           {/* View Mode Toggle (Mobile only) */}
           <div className="flex bg-[var(--input-bg)] p-1 rounded-xl border border-[var(--border-color)] md:hidden col-span-2 justify-between">
             <button
+              onClick={() => setIsSelectMode(!isSelectMode)}
+              className={cn(
+                "flex-1 flex items-center justify-center py-2 rounded-lg transition-all gap-2",
+                isSelectMode ? "bg-purple-600/30 text-purple-300 ring-1 ring-purple-500/50" : "text-white/40 hover:text-white"
+              )}
+            >
+              <CheckSquare size={18} />
+              <span className="text-[10px] font-bold uppercase tracking-widest">{isSelectMode ? 'On' : 'Select'}</span>
+            </button>
+            <div className="w-[1px] bg-[var(--border-color)] my-1 mx-1" />
+            <button
               onClick={() => setViewMode('grid')}
               className={cn(
                 "flex-1 flex justify-center py-2 rounded-lg transition-all",
@@ -133,6 +146,16 @@ export const ExploreFilterGrid: React.FC = () => {
           </span>
           
           <div className="hidden md:flex gap-2">
+            <button
+              onClick={() => setIsSelectMode(!isSelectMode)}
+              className={cn(
+                "p-1.5 rounded-lg transition-all",
+                isSelectMode ? "bg-purple-600/30 text-purple-300 ring-1 ring-purple-500/50 shadow-lg" : "text-white/40 hover:text-white hover:bg-white/5"
+              )}
+              title="Toggle Select Mode"
+            >
+              <CheckSquare size={16} />
+            </button>
             <button
               onClick={() => setViewMode('grid')}
               className={cn(

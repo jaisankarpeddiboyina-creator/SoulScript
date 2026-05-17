@@ -9,10 +9,18 @@ import {
   FilterX, 
   ArrowUpDown,
   Palette,
-  RefreshCw
+  RefreshCw,
+  CheckSquare,
+  Square,
+  Download,
+  Trash2,
+  Share2,
+  FileArchive,
+  Image as ImageIcon
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
-import { QuoteCard } from '../components/QuoteCard';
+import { QuoteCard, QuoteCardHandle } from '../components/QuoteCard';
+import JSZip from 'jszip';
 import { Quote, ViewMode, QuoteLength, QuoteCategory, QuoteSort } from '../types';
 import { CATEGORIES, CATEGORY_MAP, FALLBACK_QUOTES, SORT_OPTIONS } from '../constants';
 import { cn } from '../lib/utils';
@@ -25,7 +33,9 @@ export const Explore: React.FC = () => {
     stagedFilters,
     setStagedFilters,
     filteredCount,
-    setFilteredCount
+    setFilteredCount,
+    isSelectMode,
+    setIsSelectMode
   } = useApp();
   
   const { category, search, length: lengthFilter, sort } = exploreFilters;
@@ -37,6 +47,100 @@ export const Explore: React.FC = () => {
   const [page, setPage] = useState(1);
   const [hasMore, setHasMore] = useState(true);
   const usedLocks = useRef<Set<number>>(new Set());
+
+  // Selection State
+  const [selectedQuoteIds, setSelectedQuoteIds] = useState<Set<string>>(new Set());
+  const [isBulkDownloading, setIsBulkDownloading] = useState(false);
+  const [showDownloadOptions, setShowDownloadOptions] = useState(false);
+  const cardRefs = useRef<Record<string, QuoteCardHandle | null>>({});
+
+  // Reset selection when exiting select mode
+  useEffect(() => {
+    if (!isSelectMode) {
+      setSelectedQuoteIds(new Set());
+    }
+  }, [isSelectMode]);
+
+  const toggleSelect = (id: string) => {
+    setSelectedQuoteIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const selectAll = () => {
+    if (selectedQuoteIds.size === filteredQuotes.length) {
+      setSelectedQuoteIds(new Set());
+    } else {
+      setSelectedQuoteIds(new Set(filteredQuotes.map(q => q._id)));
+    }
+  };
+
+  const handleBulkDownload = async (format: 'zip' | 'gallery') => {
+    setShowDownloadOptions(false);
+    if (selectedQuoteIds.size === 0) return;
+    
+    setIsBulkDownloading(true);
+    addToast('Preparing your cards...', 'info');
+
+    try {
+      if (format === 'zip') {
+        const zip = new JSZip();
+        
+        for (const id of Array.from(selectedQuoteIds)) {
+          const handle = cardRefs.current[id];
+          if (handle) {
+            const canvas = await handle.getCanvas();
+            if (canvas) {
+              const quote = filteredQuotes.find(q => q._id === id);
+              const author = quote?.author || 'Unknown';
+              const timestamp = Date.now();
+              const filename = `SoulScript-${author.replace(/[^a-z0-9]/gi, '_')}-${timestamp}.png`;
+              
+              const base64Data = canvas.toDataURL('image/png').split(',')[1];
+              zip.file(filename, base64Data, { base64: true });
+            }
+          }
+        }
+
+        const content = await zip.generateAsync({ type: 'blob' });
+        const link = document.createElement('a');
+        link.href = URL.createObjectURL(content);
+        link.download = `SoulScript-Bulk-${Date.now()}.zip`;
+        link.click();
+      } else {
+        // Gallery mode: individual downloads with delay
+        for (const id of Array.from(selectedQuoteIds)) {
+          const handle = cardRefs.current[id];
+          if (handle) {
+            const quote = filteredQuotes.find(q => q._id === id);
+            const author = quote?.author || 'Unknown';
+            const timestamp = Date.now();
+            const filename = `SoulScript-${author.replace(/[^a-z0-9]/gi, '_')}-${timestamp}.png`;
+            
+            const canvas = await handle.getCanvas();
+            if (canvas) {
+              const link = document.createElement('a');
+              link.href = canvas.toDataURL('image/png');
+              link.download = filename;
+              link.click();
+              // Small delay to ensure browser handles multiple downloads
+              await new Promise(r => setTimeout(r, 800));
+            }
+          }
+        }
+      }
+      addToast('Downloaded successfully', 'success');
+      setIsSelectMode(false);
+    } catch (err) {
+      console.error('Bulk download failed', err);
+      addToast('Download failed. Try selecting fewer cards.', 'error');
+    } finally {
+      setIsBulkDownloading(false);
+    }
+  };
 
   // Re-fetch when category or page changes
   const fetchQuotes = async (pageNum: number, isNewCategory: boolean = false) => {
@@ -240,9 +344,13 @@ export const Explore: React.FC = () => {
                     layout
                   >
                     <QuoteCard 
+                      ref={el => cardRefs.current[quote._id] = el}
                       quote={quote} 
                       image={images[quote._id]} 
                       category={quote.tags[0]}
+                      selectionMode={isSelectMode}
+                      isSelected={selectedQuoteIds.has(quote._id)}
+                      onToggleSelect={() => toggleSelect(quote._id)}
                       className={cn(
                         "h-[280px] md:h-auto md:aspect-auto",
                         quote.content.length > 150 ? "md:aspect-[3/5]" : quote.content.length < 60 ? "md:aspect-square" : "md:aspect-[3/4]"
@@ -306,10 +414,14 @@ export const Explore: React.FC = () => {
               className="h-[100dvh] snap-start"
             >
               <QuoteCard 
+                ref={el => cardRefs.current[quote._id] = el}
                 quote={quote} 
                 image={images[quote._id]} 
                 category={quote.tags[0]}
                 variant="reels"
+                selectionMode={isSelectMode}
+                isSelected={selectedQuoteIds.has(quote._id)}
+                onToggleSelect={() => toggleSelect(quote._id)}
                 onSwipeUp={() => {
                   const scrollContainer = document.querySelector('.snap-mandatory');
                   if (scrollContainer) {
@@ -349,6 +461,122 @@ export const Explore: React.FC = () => {
           <Loader2 className="animate-spin text-indigo-400 w-8 h-8" />
         </div>
       )}
+
+      {/* Floating Action Bar */}
+      <AnimatePresence>
+        {isSelectMode && (
+          <motion.div
+            initial={{ y: 100, opacity: 0 }}
+            animate={{ y: 0, opacity: 1 }}
+            exit={{ y: 100, opacity: 0 }}
+            className="fixed bottom-[85px] md:bottom-8 left-4 right-4 z-[60] flex justify-center"
+          >
+            <div className="bg-black/80 backdrop-blur-2xl rounded-2xl md:rounded-full px-6 py-4 flex items-center justify-between gap-4 shadow-[0_20px_50px_rgba(0,0,0,0.5)] border border-white/20 w-full max-w-2xl">
+              <div className="flex items-center gap-4">
+                <button
+                  onClick={selectAll}
+                  className={cn(
+                    "px-5 py-2.5 flex items-center gap-2.5 text-[10px] font-black uppercase tracking-[0.15em] transition-all active:scale-95 shadow-lg rounded-xl border border-white/30",
+                    selectedQuoteIds.size === filteredQuotes.length 
+                      ? "bg-white text-black border-white" 
+                      : "bg-white/10 text-white hover:bg-white/20"
+                  )}
+                >
+                  {selectedQuoteIds.size === filteredQuotes.length ? (
+                    <CheckSquare size={16} strokeWidth={3} />
+                  ) : (
+                    <Square size={16} strokeWidth={2.5} className="text-white/60" />
+                  )}
+                  <span>Select All</span>
+                </button>
+                <div className="w-[1px] h-6 bg-white/20" />
+                <div className="flex items-center px-4 py-1.5 rounded-full bg-indigo-500/20 border border-indigo-500/30">
+                  <span className="text-[10px] font-black uppercase tracking-[0.15em] text-indigo-400">
+                    {selectedQuoteIds.size} Selected
+                  </span>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-4">
+                <button
+                  onClick={() => setIsSelectMode(false)}
+                  className="px-4 py-2 text-[10px] font-black uppercase tracking-[0.15em] text-white/70 hover:text-white transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={() => setShowDownloadOptions(true)}
+                  disabled={selectedQuoteIds.size === 0 || isBulkDownloading}
+                  className="px-7 py-3 gradient-bg rounded-xl text-[10px] font-black uppercase tracking-[0.15em] text-white shadow-[0_10px_20px_rgba(139,92,246,0.3)] active:scale-95 transition-all disabled:opacity-30 disabled:grayscale flex items-center gap-2"
+                >
+                  {isBulkDownloading ? <Loader2 size={16} className="animate-spin" /> : <Download size={16} strokeWidth={2.5} />}
+                  <span>Download</span>
+                </button>
+              </div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Download Options Modal */}
+      <AnimatePresence>
+        {showDownloadOptions && (
+          <div className="fixed inset-0 z-[120] flex items-center justify-center p-4">
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setShowDownloadOptions(false)}
+              className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+            />
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0, y: 20 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.9, opacity: 0, y: 20 }}
+              className="relative w-full max-w-xs glass-heavy rounded-3xl p-6 shadow-2xl border border-white/10 overflow-hidden"
+            >
+              <div className="flex items-center justify-between mb-6">
+                <h3 className="text-xs font-black uppercase tracking-[0.2em] text-indigo-400">Download Options</h3>
+                <button onClick={() => setShowDownloadOptions(false)} className="text-gray-500 hover:text-white p-1">
+                  <X size={20} />
+                </button>
+              </div>
+
+              <div className="space-y-3">
+                <button
+                  onClick={() => handleBulkDownload('zip')}
+                  className="w-full flex items-center gap-4 p-4 rounded-2xl bg-white/5 hover:bg-indigo-500/10 transition-all group"
+                >
+                  <div className="p-3 rounded-xl bg-purple-500/20 text-purple-400">
+                    <FileArchive size={20} />
+                  </div>
+                  <div className="text-left">
+                    <p className="text-sm font-bold text-[var(--text-primary)]">Download as ZIP</p>
+                    <p className="text-[10px] text-gray-500 font-medium tracking-tight">Best for desktop & organizing</p>
+                  </div>
+                </button>
+
+                <button
+                  onClick={() => handleBulkDownload('gallery')}
+                  className="w-full flex items-center gap-4 p-4 rounded-2xl bg-white/5 hover:bg-indigo-500/10 transition-all group "
+                >
+                  <div className="p-3 rounded-xl bg-pink-500/20 text-pink-400">
+                    <ImageIcon size={20} />
+                  </div>
+                  <div className="text-left">
+                    <p className="text-sm font-bold text-[var(--text-primary)]">Save to Gallery</p>
+                    <p className="text-[10px] text-gray-500 font-medium tracking-tight">Best for mobile photo sync</p>
+                  </div>
+                </button>
+              </div>
+              
+              <p className="mt-6 text-[9px] text-center text-gray-500 font-medium leading-relaxed">
+                Rendered with magic. Each image is high definition.
+              </p>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </div>
   );
 };

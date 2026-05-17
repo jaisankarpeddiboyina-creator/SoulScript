@@ -15,7 +15,8 @@ import {
   Twitter,
   Facebook,
   Instagram,
-  Link2
+  Link2,
+  Check
 } from 'lucide-react';
 import html2canvas from 'html2canvas';
 
@@ -31,6 +32,15 @@ const captureQuoteCard = async (cardRef: React.RefObject<HTMLDivElement | null>)
     height: cardRef.current.scrollHeight,
     windowWidth: cardRef.current.scrollWidth,
     windowHeight: cardRef.current.scrollHeight,
+    onclone: (clonedDoc) => {
+      // Remove backdrop-filter as it's not supported and can cause color parsing issues
+      const elements = clonedDoc.querySelectorAll('*');
+      elements.forEach((el) => {
+        const style = (el as HTMLElement).style;
+        if (style.backdropFilter) style.backdropFilter = 'none';
+        if (style.filter && style.filter.includes('blur')) style.filter = 'none';
+      });
+    },
     logging: false,
     imageTimeout: 15000,
     ignoreElements: (el) => {
@@ -208,6 +218,9 @@ export interface QuoteCardProps {
   className?: string;
   onSwipeUp?: () => void;
   onSwipeDown?: () => void;
+  selectionMode?: boolean;
+  isSelected?: boolean;
+  onToggleSelect?: () => void;
   visibility?: {
     showQuote: boolean;
     showAuthor: boolean;
@@ -219,6 +232,7 @@ export interface QuoteCardProps {
 export interface QuoteCardHandle {
   handleShare: (e?: React.MouseEvent) => Promise<void>;
   handleDownload: (e?: React.MouseEvent) => Promise<void>;
+  getCanvas: () => Promise<HTMLCanvasElement | null>;
   sharing: boolean;
   downloading: boolean;
 }
@@ -231,6 +245,9 @@ export const QuoteCard = forwardRef<QuoteCardHandle, QuoteCardProps>(({
   className,
   onSwipeUp,
   onSwipeDown,
+  selectionMode,
+  isSelected,
+  onToggleSelect,
   visibility = {
     showQuote: true,
     showAuthor: true,
@@ -254,6 +271,7 @@ export const QuoteCard = forwardRef<QuoteCardHandle, QuoteCardProps>(({
   useImperativeHandle(ref, () => ({
     handleShare: (e) => handleShare(e),
     handleDownload: (e) => handleDownload(e),
+    getCanvas: () => captureQuoteCard(cardRef),
     sharing,
     downloading
   }), [sharing, downloading]);
@@ -404,14 +422,50 @@ export const QuoteCard = forwardRef<QuoteCardHandle, QuoteCardProps>(({
       ref={cardRef}
       onTouchStart={handleTouchStart}
       onTouchEnd={handleTouchEnd}
-      onClick={handleDoubleTap}
+      onClick={(e) => {
+        if (selectionMode) {
+          onToggleSelect?.();
+        } else {
+          handleDoubleTap(e);
+        }
+      }}
       className={cn(
         "relative overflow-hidden group rounded-2xl shadow-2xl bg-black transition-all cursor-pointer",
         isReels ? "h-full w-full rounded-none" : "w-full min-h-[280px] h-auto",
         isPreview && "aspect-square",
+        selectionMode && "ring-offset-2 ring-offset-dark-bg transition-shadow duration-300",
+        selectionMode && isSelected && "ring-4 ring-purple-500",
         className
       )}
     >
+      {/* Selection Overlay */}
+      {selectionMode && (
+        <div 
+          className={cn(
+            "absolute inset-0 z-[15] transition-all duration-300 pointer-events-none",
+            isSelected ? "" : "bg-transparent"
+          )} 
+          style={isSelected ? { backgroundColor: 'rgba(168, 85, 247, 0.1)' } : {}}
+        />
+      )}
+
+      {/* Checkbox Icon */}
+      {selectionMode && (
+        <div className="absolute top-4 left-4 z-[20]">
+          <div 
+            className={cn(
+              "w-6 h-6 rounded-lg border-2 flex items-center justify-center transition-all",
+              isSelected 
+                ? "bg-purple-600 border-purple-600 text-white" 
+                : "border-white/40 group-hover:border-white"
+            )}
+            style={!isSelected ? { backgroundColor: 'rgba(0, 0, 0, 0.3)' } : {}}
+          >
+            {isSelected && <Check size={16} strokeWidth={4} />}
+          </div>
+        </div>
+      )}
+
       <AnimatePresence>
         {showHeart && (
           <motion.div
@@ -460,7 +514,10 @@ export const QuoteCard = forwardRef<QuoteCardHandle, QuoteCardProps>(({
       </div>
 
       {/* Overlays */}
-      <div className="absolute inset-0 bg-gradient-to-b from-black/45 to-black/75 transition-opacity" />
+      <div 
+        className="absolute inset-0 transition-opacity" 
+        style={{ background: 'linear-gradient(to bottom, rgba(0,0,0,0.45), rgba(0,0,0,0.75))' }}
+      />
 
       {/* 3-Dot Menu Button */}
       <div className="absolute top-4 right-4 z-10" ref={menuRef}>

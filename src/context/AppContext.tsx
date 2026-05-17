@@ -34,6 +34,8 @@ interface AppContextType {
   resetFilters: () => void;
   viewMode: ViewMode;
   setViewMode: (mode: ViewMode) => void;
+  isSelectMode: boolean;
+  setIsSelectMode: (mode: boolean) => void;
   filteredCount: number;
   setFilteredCount: (count: number) => void;
 
@@ -63,6 +65,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   });
   const [stagedFilters, setStagedFilters] = useState<ExploreFilters>(exploreFilters);
   const [viewMode, setViewMode] = useState<ViewMode>((localStorage.getItem('viewMode') as ViewMode) || 'grid');
+  const [isSelectMode, setIsSelectMode] = useState(false);
   const [filteredCount, setFilteredCount] = useState(0);
   const [generatePreloadedQuote, setGeneratePreloadedQuote] = useState<{ content: string; author: string; category: QuoteCategory; imageUrl: string } | null>(null);
 
@@ -123,6 +126,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         resetFilters,
         viewMode,
         setViewMode,
+        isSelectMode,
+        setIsSelectMode,
         filteredCount,
         setFilteredCount,
         generatePreloadedQuote,
