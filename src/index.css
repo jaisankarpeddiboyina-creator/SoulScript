@@ -1,9 +1,16 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Playfair+Display:ital,wght@0,400;0,700;1,400;1,700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Playfair+Display:ital,wght@0,400;0,700;1,400;1,700&family=Lora&family=Merriweather&family=Cormorant+Garamond&family=DM+Serif+Display&family=Libre+Baskerville&family=Crimson+Text&family=Raleway&display=swap');
 @import "tailwindcss";
 
 @theme {
   --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
   --font-serif: "Playfair Display", ui-serif, Georgia, serif;
+  --font-lora: "Lora", serif;
+  --font-merriweather: "Merriweather", serif;
+  --font-cormorant: "Cormorant Garamond", serif;
+  --font-dm-serif: "DM Serif Display", serif;
+  --font-libre: "Libre Baskerville", serif;
+  --font-crimson: "Crimson Text", serif;
+  --font-raleway: "Raleway", sans-serif;
 
   --animate-float: float 6s ease-in-out infinite;
 

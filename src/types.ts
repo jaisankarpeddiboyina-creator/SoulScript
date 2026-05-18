@@ -6,7 +6,10 @@ export type QuoteCategory =
   | 'life' 
   | 'inspiration' 
   | 'philosophy' 
-  | 'friendship';
+  | 'friendship'
+  | 'success'
+  | 'stoicism'
+  | 'religion';
 
 export interface Quote {
   _id: string;

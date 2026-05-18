@@ -2,5 +2,5 @@
   "name": "SoulScript",
   "description": "A dark glassmorphism web app to explore and generate beautiful quote cards with Unsplash backgrounds.",
   "requestFramePermissions": [],
-  "majorCapabilities": []
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }

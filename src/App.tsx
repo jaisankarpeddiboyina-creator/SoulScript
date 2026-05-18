@@ -7,8 +7,10 @@ import { AppProvider, useApp } from './context/AppContext';
 import { Header } from './components/Header';
 import { ToastContainer } from './components/Toast';
 import { Explore } from './pages/Explore';
+import { Collections } from './pages/Collections';
 import { Generate } from './pages/Generate';
 import { Playlists } from './pages/Playlists';
+import { Delivery } from './pages/Delivery';
 import { PlaylistModal } from './components/PlaylistModal';
 import { motion, AnimatePresence } from 'motion/react';
 
@@ -36,6 +38,17 @@ function AppContent() {
               <Explore />
             </motion.div>
           )}
+          {activeTab === 'collections' && (
+            <motion.div
+              key="collections"
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -20 }}
+              transition={{ duration: 0.3 }}
+            >
+              <Collections />
+            </motion.div>
+          )}
           {activeTab === 'generate' && (
             <motion.div
               key="generate"
@@ -56,6 +69,17 @@ function AppContent() {
               transition={{ duration: 0.3 }}
             >
               <Playlists />
+            </motion.div>
+          )}
+          {activeTab === 'delivery' && (
+            <motion.div
+              key="delivery"
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              transition={{ duration: 0.3 }}
+            >
+              <Delivery />
             </motion.div>
           )}
         </AnimatePresence>

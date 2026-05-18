@@ -337,7 +337,7 @@ export const Explore: React.FC = () => {
               ) : filteredQuotes.length > 0 ? (
                 filteredQuotes.map((quote, index) => (
                   <motion.div
-                    key={quote._id + index}
+                    key={`${quote._id}-${index}`}
                     initial={{ opacity: 0, scale: 0.9 }}
                     animate={{ opacity: 1, scale: 1 }}
                     exit={{ opacity: 0, scale: 0.9 }}
@@ -409,7 +409,7 @@ export const Explore: React.FC = () => {
             <div className="h-full w-full shimmer-bg" />
           ) : filteredQuotes.map((quote, index) => (
             <div 
-              key={quote._id + index}
+              key={`${quote._id}-${index}`}
               ref={index === filteredQuotes.length - 1 ? lastQuoteElementRef : null}
               className="h-[100dvh] snap-start"
             >
@@ -492,7 +492,7 @@ export const Explore: React.FC = () => {
                 <div className="w-[1px] h-6 bg-white/20" />
                 <div className="flex items-center px-4 py-1.5 rounded-full bg-indigo-500/20 border border-indigo-500/30">
                   <span className="text-[10px] font-black uppercase tracking-[0.15em] text-indigo-400">
-                    {selectedQuoteIds.size} Selected
+                    {selectedQuoteIds.size} {selectedQuoteIds.size === 1 ? 'Quote' : 'Quotes'} Selected
                   </span>
                 </div>
               </div>

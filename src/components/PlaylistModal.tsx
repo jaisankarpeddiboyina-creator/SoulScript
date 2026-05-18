@@ -121,7 +121,7 @@ export const PlaylistModal: React.FC = () => {
                   </div>
                   <div>
                     <p className="text-sm font-bold text-[var(--text-primary)]">{playlist.name}</p>
-                    <p className="text-[10px] text-gray-500 font-medium uppercase tracking-widest">{playlist.quotes.length} Items</p>
+                    <p className="text-[10px] text-gray-500 font-medium uppercase tracking-widest">{playlist.quotes.length} {playlist.quotes.length === 1 ? 'Quote' : 'Quotes'}</p>
                   </div>
                 </div>
                 <ChevronRight size={18} className="text-gray-600 group-hover:text-white transition-colors" />

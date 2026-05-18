@@ -9,7 +9,10 @@ export const CATEGORY_MAP: Record<QuoteCategory | 'all', string[]> = {
   life: ["lifestyle", "journey", "road", "city", "morning", "freedom"],
   inspiration: ["sky", "light", "sunrise", "spark", "dream", "horizon"],
   philosophy: ["abstract", "dark", "cosmos", "shadow", "mind", "depth"],
-  friendship: ["together", "hands", "warmth", "smile", "bond", "group"]
+  friendship: ["together", "hands", "warmth", "smile", "bond", "group"],
+  success: ["money", "rich", "empire", "luxury", "tower", "office"],
+  stoicism: ["statue", "stone", "mountain", "calm", "winter", "strength"],
+  religion: ["church", "temple", "mosque", "light", "pray", "peace"]
 };
 
 export const SORT_OPTIONS: { id: QuoteSort; label: string }[] = [
@@ -62,5 +65,14 @@ export const FALLBACK_QUOTES: Record<QuoteCategory, Partial<Quote>[]> = {
   friendship: [
     { content: "A friend is someone who knows all about you and still loves you.", author: "Elbert Hubbard" },
     { content: "Friendship is the only cement that will ever hold the world together.", author: "Woodrow Wilson" }
+  ],
+  success: [
+    { content: "Success is not final, failure is not fatal: it is the courage to continue that counts.", author: "Winston Churchill" }
+  ],
+  stoicism: [
+    { content: "Waste no more time arguing about what a good man should be. Be one.", author: "Marcus Aurelius" }
+  ],
+  religion: [
+    { content: "Be kind, for everyone you meet is fighting a harder battle.", author: "Plato" }
   ]
 };

@@ -140,7 +140,7 @@ export const ExploreFilterGrid: React.FC = () => {
 
         <div className="flex items-center justify-between px-1">
           <span className="text-[11px] font-medium text-[var(--text-secondary)]">
-            Showing {filteredCount} quotes {isFilterActive && (
+            Showing {filteredCount} {filteredCount === 1 ? 'quote' : 'quotes'} {isFilterActive && (
               <button onClick={resetFilters} className="ml-2 text-indigo-400 hover:text-indigo-300 font-bold decoration-dotted underline underline-offset-4 cursor-pointer">Reset</button>
             )}
           </span>

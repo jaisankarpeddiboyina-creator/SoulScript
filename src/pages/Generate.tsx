@@ -11,7 +11,10 @@ import {
   Zap,
   Globe,
   Loader2,
-  Copy
+  Copy,
+  Type,
+  Lock,
+  ChevronRight
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { QuoteCard, QuoteCardHandle } from '../components/QuoteCard';
@@ -30,6 +33,17 @@ const categoryImageKeywords: Record<string, string[]> = {
   friendship:   ["friends,together", "bond,laugh", "group,warm", "unity,people", "companionship,happy", "trust,smile"]
 };
 
+const FONTS = [
+  { id: 'playfair', name: 'Playfair Display', family: '"Playfair Display", serif', premium: false },
+  { id: 'lora', name: 'Lora', family: '"Lora", serif', premium: true },
+  { id: 'merriweather', name: 'Merriweather', family: '"Merriweather", serif', premium: true },
+  { id: 'cormorant', name: 'Cormorant Garamond', family: '"Cormorant Garamond", serif', premium: true },
+  { id: 'dm-serif', name: 'DM Serif Display', family: '"DM Serif Display", serif', premium: true },
+  { id: 'libre', name: 'Libre Baskerville', family: '"Libre Baskerville", serif', premium: true },
+  { id: 'crimson', name: 'Crimson Text', family: '"Crimson Text", serif', premium: true },
+  { id: 'raleway', name: 'Raleway', family: '"Raleway", sans-serif', premium: true },
+];
+
 export const Generate: React.FC = () => {
   const { addToast, generatePreloadedQuote, setGeneratePreloadedQuote } = useApp();
   
@@ -45,6 +59,8 @@ export const Generate: React.FC = () => {
     author: ""
   });
   const [imageUrl, setImageUrl] = useState('');
+  const [selectedFont, setSelectedFont] = useState(FONTS[0]);
+  const [showUpgradeModal, setShowUpgradeModal] = useState(false);
   const [loadingQuote, setLoadingQuote] = useState(false);
   const [loadingImage, setLoadingImage] = useState(false);
   const [copying, setCopying] = useState(false);
@@ -253,7 +269,8 @@ export const Generate: React.FC = () => {
   }, []);
 
   return (
-    <div className="md:grid md:grid-cols-2 lg:grid-cols-12 md:gap-8 items-start -mx-4 md:mx-auto min-h-[100dvh] pb-[80px] flex flex-col overflow-y-auto">
+    <>
+      <div className="md:grid md:grid-cols-2 lg:grid-cols-12 md:gap-8 items-start -mx-4 md:mx-auto min-h-[100dvh] pb-[80px] flex flex-col overflow-y-auto">
       {/* Top Preview Section - Fixed on Mobile (ORDER 2 on Desktop) */}
       <div className={cn(
         "w-full md:grid md:col-span-1 lg:col-span-12 xl:col-span-7 sticky top-[84px] md:top-24 z-20 space-y-4 md:space-y-6 bg-[var(--bg-primary)] md:bg-transparent px-4 pb-4 md:p-0 transition-all duration-300 shrink-0 md:order-2",
@@ -304,6 +321,7 @@ export const Generate: React.FC = () => {
                       category={category}
                       variant="preview"
                       visibility={cardVisibility}
+                      font={selectedFont.family}
                       className="h-full shadow-2xl ring-1 ring-white/10"
                     />
                   </motion.div>
@@ -370,6 +388,39 @@ export const Generate: React.FC = () => {
                    </button>
                  </div>
                ))}
+             </div>
+
+             {/* Font Picker */}
+             <div className="pt-4 border-t border-[var(--border-color)] space-y-4">
+               <div className="flex items-center gap-2">
+                 <Type size={14} className="text-indigo-400" />
+                 <span className="text-[10px] font-black uppercase tracking-[0.2em] text-[var(--text-secondary)]">Font</span>
+               </div>
+               
+               <div className="flex gap-2 overflow-x-auto pb-4 custom-scrollbar -mx-2 px-2 no-scrollbar">
+                 {FONTS.map((font) => (
+                   <button
+                     key={font.id}
+                     onClick={() => {
+                       if (font.premium) {
+                         setShowUpgradeModal(true);
+                       } else {
+                         setSelectedFont(font);
+                       }
+                     }}
+                     style={{ fontFamily: font.family }}
+                     className={cn(
+                       "whitespace-nowrap px-4 py-2 rounded-full text-sm font-medium transition-all border shrink-0 flex items-center gap-2",
+                       selectedFont.id === font.id 
+                         ? "bg-indigo-600 border-indigo-500 text-white shadow-lg" 
+                         : "bg-white/5 border-white/10 text-[var(--text-secondary)] hover:bg-white/10"
+                     )}
+                   >
+                     {font.name}
+                     {font.premium && <Lock size={12} className="opacity-50" />}
+                   </button>
+                 ))}
+               </div>
              </div>
            </div>
         </div>
@@ -546,5 +597,53 @@ export const Generate: React.FC = () => {
         </div>
       </div>
     </div>
+
+    <AnimatePresence>
+      {showUpgradeModal && (
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          className="fixed inset-0 z-[200] flex items-center justify-center bg-black/80 backdrop-blur-md p-4"
+          onClick={() => setShowUpgradeModal(false)}
+        >
+          <motion.div
+            initial={{ scale: 0.9, opacity: 0, y: 20 }}
+            animate={{ scale: 1, opacity: 1, y: 0 }}
+            exit={{ scale: 0.9, opacity: 0, y: 20 }}
+            onClick={(e) => e.stopPropagation()}
+            className="w-full max-w-sm bg-[var(--bg-card)] border border-indigo-500/30 rounded-3xl overflow-hidden shadow-2xl p-8 text-center space-y-6"
+          >
+            <div className="w-16 h-16 bg-gradient-to-tr from-purple-600 to-indigo-600 rounded-2xl flex items-center justify-center mx-auto shadow-xl shadow-indigo-500/20 mb-2">
+              <Zap className="text-white fill-white" size={32} />
+            </div>
+            
+            <div className="space-y-2">
+              <h3 className="text-2xl font-serif font-bold text-white tracking-tight">Premium Fonts</h3>
+              <p className="text-[var(--text-secondary)] text-sm leading-relaxed px-4">
+                Custom typography is part of our <span className="text-indigo-400 font-bold">Premium Experience</span>. Upgrade to unlock all fonts and styles.
+              </p>
+            </div>
+
+            <div className="space-y-3 pt-2">
+              <button
+                onClick={() => addToast('Premium flow coming soon!', 'info')}
+                className="w-full py-4 gradient-bg rounded-2xl font-black text-xs uppercase tracking-widest text-white shadow-lg shadow-indigo-500/20 hover:scale-[1.02] transition-all flex items-center justify-center gap-2"
+              >
+                Upgrade Now
+                <ChevronRight size={16} />
+              </button>
+              <button
+                onClick={() => setShowUpgradeModal(false)}
+                className="w-full py-4 bg-white/5 hover:bg-white/10 rounded-2xl font-black text-xs uppercase tracking-widest text-[var(--text-secondary)] transition-all"
+              >
+                Maybe Later
+              </button>
+            </div>
+          </motion.div>
+        </motion.div>
+      )}
+    </AnimatePresence>
+    </>
   );
 };

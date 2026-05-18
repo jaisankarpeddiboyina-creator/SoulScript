@@ -252,6 +252,7 @@ export interface QuoteCardProps {
     showCategory: boolean;
     showQuoteMarks: boolean;
   };
+  font?: string;
 }
 
 export interface QuoteCardHandle {
@@ -279,7 +280,8 @@ export const QuoteCard = forwardRef<QuoteCardHandle, QuoteCardProps>(({
     showAuthor: true,
     showCategory: true,
     showQuoteMarks: true
-  }
+  },
+  font = 'Playfair Display'
 }, ref) => {
   const { addToast, setActiveTab, setGeneratePreloadedQuote, setPlaylistModalQuote } = useApp();
   const cardRef = useRef<HTMLDivElement>(null);
@@ -656,7 +658,8 @@ export const QuoteCard = forwardRef<QuoteCardHandle, QuoteCardProps>(({
             )}
             style={{ 
               fontSize: getQuoteFontSize(quote.content?.length || 0), 
-              lineHeight: '1.45' 
+              lineHeight: '1.45',
+              fontFamily: font
             }}
             >
               <p className="m-0 break-words">
@@ -673,7 +676,10 @@ export const QuoteCard = forwardRef<QuoteCardHandle, QuoteCardProps>(({
         )}>
           {!isReels && <div className="h-[2px] w-9 bg-gradient-to-r from-purple-600 to-pink-600 mb-2" />}
           {visibility.showAuthor && quote.author && (
-            <cite className="text-white text-sm md:text-base font-bold not-italic drop-shadow-sm">
+            <cite 
+              className="text-white text-sm md:text-base font-bold not-italic drop-shadow-sm"
+              style={{ fontFamily: font }}
+            >
               {quote.author}
             </cite>
           )}

@@ -124,7 +124,7 @@ export const Playlists: React.FC = () => {
             <div>
               <h1 className="text-2xl font-bold font-serif text-[var(--text-primary)]">{activePlaylist.name}</h1>
               <p className="text-xs text-[var(--text-secondary)] font-medium tracking-widest uppercase">
-                {activePlaylist.quotes.length} Quotes
+                {activePlaylist.quotes.length} {activePlaylist.quotes.length === 1 ? 'Quote' : 'Quotes'}
               </p>
             </div>
           </div>
@@ -292,7 +292,7 @@ export const Playlists: React.FC = () => {
                     <span>{new Date(playlist.createdAt).toLocaleDateString()}</span>
                   </div>
                   <div className="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-widest bg-indigo-500/10 text-indigo-400 px-2 py-1 rounded-md">
-                    <span>{playlist.quotes.length} Quotes</span>
+                    <span>{playlist.quotes.length} {playlist.quotes.length === 1 ? 'Quote' : 'Quotes'}</span>
                   </div>
                 </div>
               </div>
