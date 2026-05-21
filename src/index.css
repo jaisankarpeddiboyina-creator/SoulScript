@@ -197,8 +197,7 @@
   @media (max-width: 767px) {
     html, body {
       overflow-x: hidden;
-      width: 100vw;
-      position: relative;
+      width: 100%;
     }
     
     button, 
@@ -212,6 +211,26 @@
     }
 
     .text-xs { font-size: 14px !important; }
+  }
+
+  /* Tablet View Adjustments (768px to 1024px) */
+  @media (min-width: 768px) and (max-width: 1024px) {
+    h1 { @apply text-3xl; }
+    h2 { @apply text-2xl; }
+    
+    button, 
+    [role="button"],
+    input,
+    select,
+    textarea {
+      min-height: 44px;
+      min-width: 44px;
+    }
+
+    /* Professional spacing for tablets */
+    .container {
+      @apply px-6;
+    }
   }
 }
 

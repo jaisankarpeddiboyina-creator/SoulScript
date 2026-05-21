@@ -1,23 +1,24 @@
 import { QuoteCategory } from '../types';
+import { pocketbaseService } from './pocketbase';
 
 export interface PlaylistQuote {
-  id: string;
+  quoteId: string;
   quoteText: string;
   author: string;
   category: string | QuoteCategory;
   imageUrl: string;
-  addedAt: number;
+  addedAt?: string | number;
 }
 
 export interface Playlist {
   id: string;
   name: string;
-  createdAt: number;
+  createdAt: string | number;
   quotes: PlaylistQuote[];
 }
 
 export interface Subscription {
-  id: string;
+  id?: string;
   channel: 'email' | 'telegram';
   email?: string;
   chatId?: string;
@@ -29,8 +30,8 @@ export interface Subscription {
   timeOfDay: 'morning' | 'afternoon' | 'evening';
   timezone: string;
   paused: boolean;
-  verified: boolean;
-  createdAt: number;
+  verified?: boolean;
+  createdAt?: string | number;
 }
 
 export interface VerificationData {
@@ -40,9 +41,9 @@ export interface VerificationData {
   attempts: number;
 }
 
-const STORAGE_KEY = 'soulscript_playlists';
-const SUBSCRIPTION_KEY = 'soulscript_subscription';
-const VERIFICATION_KEY = 'soulscript_verification';
+export const STORAGE_KEY = 'soulscript_playlists';
+export const SUBSCRIPTION_KEY = 'soulscript_subscription';
+export const VERIFICATION_KEY = 'soulscript_verification';
 
 export const getVerification = (): VerificationData | null => {
   const data = localStorage.getItem(VERIFICATION_KEY);
@@ -77,12 +78,24 @@ export const clearVerification = (): void => {
   localStorage.removeItem(VERIFICATION_KEY);
 };
 
-export const getSubscription = (): Subscription | null => {
+export const getSubscription = async (): Promise<Subscription | null> => {
+  if (pocketbaseService.isValid()) {
+    const sub = await pocketbaseService.getUserSubscription() as any;
+    if (!sub) return null;
+    return {
+      ...sub,
+      id: sub.id,
+      createdAt: sub.created
+    };
+  }
   const data = localStorage.getItem(SUBSCRIPTION_KEY);
   return data ? JSON.parse(data) : null;
 };
 
-export const saveSubscription = (data: Omit<Subscription, 'id' | 'createdAt' | 'paused' | 'verified'>): Subscription => {
+export const saveSubscription = async (data: any): Promise<any> => {
+  if (pocketbaseService.isValid()) {
+    return await pocketbaseService.saveUserSubscription(data);
+  }
   const newSubscription: Subscription = {
     ...data,
     id: `sub_${Date.now()}`,
@@ -94,32 +107,53 @@ export const saveSubscription = (data: Omit<Subscription, 'id' | 'createdAt' | '
   return newSubscription;
 };
 
-export const updateSubscription = (data: Partial<Subscription>): Subscription | null => {
-  const current = getSubscription();
+export const updateSubscription = async (data: Partial<Subscription>): Promise<Subscription | null> => {
+  if (pocketbaseService.isValid()) {
+    const updated = await pocketbaseService.saveUserSubscription(data) as any;
+    return { ...updated, id: updated.id, createdAt: updated.created };
+  }
+  const current = await getSubscription();
   if (!current) return null;
   const updated = { ...current, ...data };
   localStorage.setItem(SUBSCRIPTION_KEY, JSON.stringify(updated));
   return updated;
 };
 
-export const pauseSubscription = (): void => {
-  const current = getSubscription();
+export const pauseSubscription = async (): Promise<void> => {
+  const current = await getSubscription();
   if (current) {
-    updateSubscription({ paused: !current.paused });
+    await updateSubscription({ paused: !current.paused });
   }
 };
 
-export const cancelSubscription = (): void => {
-  localStorage.removeItem(SUBSCRIPTION_KEY);
+export const cancelSubscription = async (): Promise<void> => {
+  if (pocketbaseService.isValid()) {
+    await pocketbaseService.deleteUserSubscription();
+  } else {
+    localStorage.removeItem(SUBSCRIPTION_KEY);
+  }
 };
 
-export const getPlaylists = (): Playlist[] => {
+export const getPlaylists = async (): Promise<Playlist[]> => {
+  if (pocketbaseService.isValid()) {
+    const lists = await pocketbaseService.getUserPlaylists();
+    return lists as any[];
+  }
   const data = localStorage.getItem(STORAGE_KEY);
   return data ? JSON.parse(data) : [];
 };
 
-export const createPlaylist = (name: string): Playlist => {
-  const playlists = getPlaylists();
+export const createPlaylist = async (name: string): Promise<any> => {
+  if (pocketbaseService.isValid()) {
+    return await pocketbaseService.createUserPlaylist(name);
+  }
+  const playlists = await getPlaylists();
+  
+  // Guest limit check
+  if (playlists.length >= 3) {
+    throw new Error('GUEST_LIMIT_REACHED');
+  }
+
   const newPlaylist: Playlist = {
     id: `pl_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
     name,
@@ -131,17 +165,24 @@ export const createPlaylist = (name: string): Playlist => {
   return newPlaylist;
 };
 
-export const deletePlaylist = (id: string): void => {
-  const playlists = getPlaylists();
+export const deletePlaylist = async (id: string): Promise<void> => {
+  if (pocketbaseService.isValid()) {
+    await pocketbaseService.deleteUserPlaylist(id);
+    return;
+  }
+  const playlists = await getPlaylists();
   localStorage.setItem(STORAGE_KEY, JSON.stringify(playlists.filter(p => p.id !== id)));
 };
 
-export const addQuoteToPlaylist = (playlistId: string, quote: Omit<PlaylistQuote, 'addedAt'>): void => {
-  const playlists = getPlaylists();
+export const addQuoteToPlaylist = async (playlistId: string, quote: any): Promise<void> => {
+  if (pocketbaseService.isValid()) {
+    await pocketbaseService.addQuoteToUserPlaylist(playlistId, quote);
+    return;
+  }
+  const playlists = await getPlaylists();
   const updatedPlaylists = playlists.map(p => {
     if (p.id === playlistId) {
-      // Avoid duplicates
-      if (p.quotes.find(q => q.id === quote.id)) return p;
+      if (p.quotes.find(q => q.quoteId === quote.quoteId)) return p;
       return {
         ...p,
         quotes: [...p.quotes, { ...quote, addedAt: Date.now() }]
@@ -153,13 +194,17 @@ export const addQuoteToPlaylist = (playlistId: string, quote: Omit<PlaylistQuote
   localStorage.setItem(STORAGE_KEY, JSON.stringify(updatedPlaylists));
 };
 
-export const removeQuoteFromPlaylist = (playlistId: string, quoteId: string): void => {
-  const playlists = getPlaylists();
+export const removeQuoteFromPlaylist = async (playlistId: string, quoteId: string): Promise<void> => {
+  if (pocketbaseService.isValid()) {
+    await pocketbaseService.removeQuoteFromUserPlaylist(playlistId, quoteId);
+    return;
+  }
+  const playlists = await getPlaylists();
   const updatedPlaylists = playlists.map(p => {
     if (p.id === playlistId) {
       return {
         ...p,
-        quotes: p.quotes.filter(q => q.id !== quoteId)
+        quotes: p.quotes.filter(q => q.quoteId !== quoteId)
       };
     }
     return p;
@@ -167,3 +212,4 @@ export const removeQuoteFromPlaylist = (playlistId: string, quoteId: string): vo
   
   localStorage.setItem(STORAGE_KEY, JSON.stringify(updatedPlaylists));
 };
+

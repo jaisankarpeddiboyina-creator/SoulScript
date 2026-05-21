@@ -15,9 +15,11 @@ import {
   Pause,
   Play,
   Trash2,
-  Globe
+  Globe,
+  Lock
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
+import { useAuth } from '../context/AuthContext';
 import { 
   getSubscription, 
   saveSubscription, 
@@ -41,6 +43,7 @@ const TIMES: ('morning' | 'afternoon' | 'evening')[] = ['morning', 'afternoon', 
 
 export const Delivery: React.FC = () => {
   const { addToast } = useApp();
+  const { isGuest, setGatingType } = useAuth();
   const [subscription, setSubscription] = useState<Subscription | null>(null);
   const [isEditing, setIsEditing] = useState(false);
   const [step, setStep] = useState<'form' | 'verifying' | 'success'>('form');
@@ -64,18 +67,20 @@ export const Delivery: React.FC = () => {
   const [blockTimeLeft, setBlockTimeLeft] = useState(0);
 
   useEffect(() => {
-    const sub = getSubscription();
-    setSubscription(sub);
-    if (sub && sub.verified) {
-      populateForm(sub);
-    } else if (sub && !sub.verified) {
-      // If there was an unverified sub, we might want to resume verification
-      const ver = getVerification();
-      if (ver) {
-        setVerificationCode(ver.code);
-        setStep('verifying');
+    const fetchSub = async () => {
+      const sub = await getSubscription();
+      setSubscription(sub);
+      if (sub && sub.verified) {
+        populateForm(sub);
+      } else if (sub && !sub.verified) {
+        const ver = getVerification();
+        if (ver) {
+          setVerificationCode(ver.code);
+          setStep('verifying');
+        }
       }
-    }
+    };
+    fetchSub();
 
     // Check for block
     const blockUntil = localStorage.getItem('soulscript_block_expiry');
@@ -158,11 +163,11 @@ export const Delivery: React.FC = () => {
       timezone
     };
 
-    saveSubscription(formData);
+    await saveSubscription(formData);
     setStep('verifying');
   };
 
-  const handleVerifyEmail = () => {
+  const handleVerifyEmail = async () => {
     const ver = getVerification();
     if (!ver) {
       addToast('Verification expired. Please resend code.', 'error');
@@ -170,11 +175,13 @@ export const Delivery: React.FC = () => {
     }
 
     if (enteredCode === ver.code) {
-      const sub = updateSubscription({ verified: true })!;
-      setSubscription(sub);
-      setStep('success');
-      clearVerification();
-      addToast('Email verified successfully!', 'success');
+      const sub = await updateSubscription({ verified: true });
+      if (sub) {
+        setSubscription(sub);
+        setStep('success');
+        clearVerification();
+        addToast('Email verified successfully!', 'success');
+      }
     } else {
       const attempts = incrementVerificationAttempts();
       if (attempts >= 3) {
@@ -194,11 +201,13 @@ export const Delivery: React.FC = () => {
     try {
       const res = await axios.get('/api/verify/status', { params: { username } });
       if (res.data.verified) {
-        const sub = updateSubscription({ verified: true, chatId: res.data.record.chatId })!;
-        setSubscription(sub);
-        setStep('success');
-        clearVerification();
-        addToast('Telegram verified successfully!', 'success');
+        const sub = await updateSubscription({ verified: true, chatId: res.data.record.chatId });
+        if (sub) {
+          setSubscription(sub);
+          setStep('success');
+          clearVerification();
+          addToast('Telegram verified successfully!', 'success');
+        }
       } else {
         addToast('Verification still pending...', 'info');
       }
@@ -225,15 +234,16 @@ export const Delivery: React.FC = () => {
     }
   };
 
-  const handlePause = () => {
-    pauseSubscription();
-    setSubscription(getSubscription());
-    addToast(subscription?.paused ? 'Resumed deliveries' : 'Paused deliveries', 'info');
+  const handlePause = async () => {
+    await pauseSubscription();
+    const updated = await getSubscription();
+    setSubscription(updated);
+    addToast(updated?.paused ? 'Paused deliveries' : 'Resumed deliveries', 'info');
   };
 
-  const handleCancel = () => {
+  const handleCancel = async () => {
     if (window.confirm('Are you sure you want to cancel your subscription?')) {
-      cancelSubscription();
+      await cancelSubscription();
       setSubscription(null);
       setStep('form');
       addToast('Subscription cancelled', 'info');
@@ -288,10 +298,10 @@ export const Delivery: React.FC = () => {
 
         {channel === 'telegram' ? (
           <div className="space-y-8">
-            <div className="p-12 glass-heavy border border-indigo-500/30 rounded-[2.5rem] text-center space-y-6 shadow-2xl relative overflow-hidden group">
+            <div className="p-12 glass-heavy border border-indigo-500/30 rounded-[2.5rem] text-center space-y-6 shadow-2xl relative overflow-hidden group bg-[var(--bg-card)]">
               <div className="absolute top-0 left-0 w-full h-full gradient-bg opacity-5 group-hover:opacity-10 transition-opacity" />
               <p className="text-[10px] font-black uppercase tracking-widest text-indigo-400">Your Verification Code</p>
-              <div className="text-6xl font-black font-mono tracking-[0.2em] text-white">
+              <div className="text-6xl font-black font-mono tracking-[0.2em] text-[var(--text-primary)]">
                 {verificationCode}
               </div>
             </div>
@@ -319,7 +329,7 @@ export const Delivery: React.FC = () => {
                 value={enteredCode}
                 onChange={(e) => setEnteredCode(e.target.value.replace(/\D/g, ''))}
                 placeholder="000000"
-                className="w-full text-center text-4xl font-black font-mono tracking-[0.5em] py-8 bg-white/5 border-2 border-white/10 rounded-3xl focus:border-indigo-500 outline-none transition-all"
+                className="w-full text-center text-4xl font-black font-mono tracking-[0.5em] py-8 bg-[var(--input-bg)] border-2 border-[var(--border-color)] text-[var(--text-primary)] placeholder-gray-400 focus:border-indigo-500 outline-none transition-all"
               />
             </div>
 
@@ -341,7 +351,7 @@ export const Delivery: React.FC = () => {
         <div className="text-center pt-8">
           <div className={cn(
             "inline-flex items-center gap-2 px-4 py-2 rounded-full border text-xs font-black uppercase tracking-widest transition-colors",
-            timeLeft < 120 ? "bg-rose-500/10 border-rose-500/20 text-rose-500" : "bg-white/5 border-white/10 text-gray-500"
+            timeLeft < 120 ? "bg-rose-500/10 border-rose-500/20 text-rose-500" : "bg-[var(--input-bg)] border-[var(--border-color)] text-[var(--text-secondary)]"
           )}>
             <Clock size={14} />
             {timeLeft > 0 ? `Code expires in ${formatTime(timeLeft)}` : "Code expired"}
@@ -355,7 +365,7 @@ export const Delivery: React.FC = () => {
   }
 
   return (
-    <div className="max-w-3xl mx-auto pb-32">
+    <div className="max-w-3xl md:max-w-[600px] mx-auto pb-32">
       {/* Header */}
       <div className="mb-12">
         <h1 className="text-4xl font-serif font-bold text-[var(--text-primary)] mb-2">Get Quotes Delivered</h1>
@@ -367,7 +377,7 @@ export const Delivery: React.FC = () => {
         <motion.div 
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          className="glass-heavy rounded-[2.5rem] p-8 md:p-12 border border-white/10 shadow-2xl overflow-hidden relative"
+          className="glass-heavy rounded-[2.5rem] p-8 md:p-12 border border-[var(--border-color)] bg-[var(--bg-card)] shadow-2xl overflow-hidden relative"
         >
           <div className="absolute top-0 left-0 w-full h-1 gradient-bg" />
           
@@ -392,19 +402,19 @@ export const Delivery: React.FC = () => {
 
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-6 mb-12">
             <div className="space-y-1">
-              <p className="text-[10px] font-black uppercase tracking-widest text-white/40">Category</p>
+              <p className="text-[10px] font-black uppercase tracking-widest text-[var(--text-secondary)]">Category</p>
               <p className="text-[var(--text-primary)] font-bold">{subscription.category}</p>
             </div>
             <div className="space-y-1">
-              <p className="text-[10px] font-black uppercase tracking-widest text-white/40">Frequency</p>
+              <p className="text-[10px] font-black uppercase tracking-widest text-[var(--text-secondary)]">Frequency</p>
               <p className="text-[var(--text-primary)] font-bold capitalize">{subscription.frequency}</p>
             </div>
             <div className="space-y-1">
-              <p className="text-[10px] font-black uppercase tracking-widest text-white/40">Time</p>
+              <p className="text-[10px] font-black uppercase tracking-widest text-[var(--text-secondary)]">Time</p>
               <p className="text-[var(--text-primary)] font-bold capitalize">{subscription.timeOfDay}</p>
             </div>
             <div className="space-y-1">
-              <p className="text-[10px] font-black uppercase tracking-widest text-white/40">Count</p>
+              <p className="text-[10px] font-black uppercase tracking-widest text-[var(--text-secondary)]">Count</p>
               <p className="text-[var(--text-primary)] font-bold">{subscription.count} {subscription.count === 1 ? 'Quote' : 'Quotes'}</p>
             </div>
           </div>
@@ -412,7 +422,7 @@ export const Delivery: React.FC = () => {
           <div className="flex flex-wrap items-center gap-4 pt-8 border-t border-white/5">
             <button 
               onClick={() => setIsEditing(true)}
-              className="flex-1 min-w-[140px] px-6 py-4 bg-white/5 hover:bg-white/10 rounded-2xl text-sm font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2"
+              className="flex-1 min-w-[140px] px-6 py-4 bg-[var(--input-bg)] hover:bg-[var(--input-bg)]/80 text-[var(--text-primary)] rounded-2xl text-sm font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2"
             >
               <Edit2 size={16} />
               Edit Settings
@@ -455,11 +465,11 @@ export const Delivery: React.FC = () => {
                   "flex items-center justify-center gap-3 p-6 rounded-3xl border-2 transition-all",
                   channel === 'email' 
                     ? "bg-indigo-600/10 border-indigo-500 shadow-[0_0_30px_rgba(99,102,241,0.2)]" 
-                    : "bg-white/5 border-transparent hover:bg-white/10"
+                    : "bg-[var(--input-bg)] border-transparent hover:bg-[var(--input-bg)]/80"
                 )}
               >
-                <Mail size={24} className={channel === 'email' ? "text-white" : "text-gray-500"} />
-                <span className={cn("font-bold", channel === 'email' ? "text-white" : "text-gray-500")}>Email</span>
+                <Mail size={24} className={channel === 'email' ? "text-indigo-600 dark:text-white" : "text-gray-500"} />
+                <span className={cn("font-bold", channel === 'email' ? "text-indigo-600 dark:text-white" : "text-gray-500")}>Email</span>
               </button>
               <button
                 type="button"
@@ -468,11 +478,11 @@ export const Delivery: React.FC = () => {
                   "flex items-center justify-center gap-3 p-6 rounded-3xl border-2 transition-all",
                   channel === 'telegram' 
                     ? "bg-sky-600/10 border-sky-500 shadow-[0_0_30px_rgba(14,165,233,0.2)]" 
-                    : "bg-white/5 border-transparent hover:bg-white/10"
+                    : "bg-[var(--input-bg)] border-transparent hover:bg-[var(--input-bg)]/80"
                 )}
               >
-                <MessageSquare size={24} className={channel === 'telegram' ? "text-white" : "text-gray-500"} />
-                <span className={cn("font-bold", channel === 'telegram' ? "text-white" : "text-gray-500")}>Telegram</span>
+                <MessageSquare size={24} className={channel === 'telegram' ? "text-sky-600 dark:text-white" : "text-gray-500"} />
+                <span className={cn("font-bold", channel === 'telegram' ? "text-sky-600 dark:text-white" : "text-gray-500")}>Telegram</span>
               </button>
             </div>
           </div>
@@ -495,7 +505,7 @@ export const Delivery: React.FC = () => {
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     placeholder="Enter your email"
-                    className="w-full pl-16 pr-6 py-6 bg-white/5 border border-white/10 rounded-3xl focus:ring-2 focus:ring-indigo-500 outline-none transition-all text-lg"
+                    className="w-full pl-16 pr-6 py-6 bg-[var(--input-bg)] border border-[var(--border-color)] text-[var(--text-primary)] rounded-3xl focus:ring-2 focus:ring-indigo-500 outline-none transition-all text-lg"
                   />
                 </div>
               </motion.div>
@@ -507,13 +517,13 @@ export const Delivery: React.FC = () => {
                 exit={{ opacity: 0, x: 20 }}
                 className="space-y-6"
               >
-                <div className="p-8 bg-sky-500/10 border border-sky-500/20 rounded-3xl space-y-4">
-                  <div className="flex items-center gap-3 text-sky-400 font-bold">
-                    <Info size={20} />
+                <div className="p-8 bg-sky-50 dark:bg-sky-950/20 border border-sky-200 dark:border-sky-500/20 rounded-3xl space-y-4">
+                  <div className="flex items-center gap-3 text-sky-900 dark:text-sky-400 font-bold">
+                    <Info size={20} className="text-sky-600 dark:text-sky-400" />
                     <span>How to verify</span>
                   </div>
-                  <ol className="space-y-3 text-sky-200/80 text-sm">
-                    <li>1. Open Telegram and search <span className="text-white font-mono bg-sky-500/20 px-2 py-0.5 rounded">@SoulScriptBot</span></li>
+                  <ol className="space-y-3 text-sky-800 dark:text-sky-100 text-sm font-medium">
+                    <li>1. Open Telegram and search <span className="text-sky-950 dark:text-white font-mono bg-sky-100/80 dark:bg-sky-500/20 px-2 py-0.5 rounded border border-sky-200 dark:border-transparent">@SoulScriptBot</span></li>
                     <li>2. Start the bot and send the code we give you next.</li>
                     <li>3. We'll link your account automatically.</li>
                   </ol>
@@ -528,7 +538,7 @@ export const Delivery: React.FC = () => {
                     value={username}
                     onChange={(e) => setUsername(e.target.value.startsWith('@') ? e.target.value : '@' + e.target.value)}
                     placeholder="@yourusername"
-                    className="w-full pl-16 pr-6 py-6 bg-white/5 border border-white/10 rounded-3xl focus:ring-2 focus:ring-sky-500 outline-none transition-all text-lg"
+                    className="w-full pl-16 pr-6 py-6 bg-[var(--input-bg)] border border-[var(--border-color)] text-[var(--text-primary)] rounded-3xl focus:ring-2 focus:ring-sky-500 outline-none transition-all text-lg"
                   />
                 </div>
               </motion.div>
@@ -550,7 +560,7 @@ export const Delivery: React.FC = () => {
                     onClick={() => setCategory(c)}
                     className={cn(
                       "px-4 py-2 rounded-xl text-xs font-bold transition-all",
-                      category === c ? "gradient-bg text-white shadow-lg" : "bg-white/5 text-gray-500 hover:bg-white/10"
+                      category === c ? "gradient-bg text-white shadow-lg" : "bg-[var(--input-bg)] text-[var(--text-secondary)] hover:bg-[var(--input-bg)]/80 hover:text-[var(--text-primary)]"
                     )}
                   >
                     {c}
@@ -572,7 +582,7 @@ export const Delivery: React.FC = () => {
                     onClick={() => setMood(m)}
                     className={cn(
                       "px-4 py-2 rounded-xl text-xs font-bold transition-all",
-                      mood === m ? "gradient-bg text-white shadow-lg" : "bg-white/5 text-gray-500 hover:bg-white/10"
+                      mood === m ? "gradient-bg text-white shadow-lg" : "bg-[var(--input-bg)] text-[var(--text-secondary)] hover:bg-[var(--input-bg)]/80 hover:text-[var(--text-primary)]"
                     )}
                   >
                     {m}
@@ -594,7 +604,7 @@ export const Delivery: React.FC = () => {
                     onClick={() => setCount(num)}
                     className={cn(
                       "w-12 h-12 rounded-xl text-xs font-black transition-all flex items-center justify-center",
-                      count === num ? "bg-indigo-500 text-white shadow-lg" : "bg-white/5 text-gray-500 hover:bg-white/10"
+                      count === num ? "bg-indigo-500 text-white shadow-lg" : "bg-[var(--input-bg)] text-[var(--text-secondary)] hover:bg-[var(--input-bg)]/80 hover:text-[var(--text-primary)]"
                     )}
                   >
                     {num}
@@ -614,7 +624,7 @@ export const Delivery: React.FC = () => {
                     onClick={() => setFrequency(f)}
                     className={cn(
                       "px-4 py-3 rounded-xl text-xs font-black uppercase tracking-widest transition-all",
-                      frequency === f ? "bg-indigo-500 text-white shadow-lg" : "bg-white/5 text-gray-500 hover:bg-white/10"
+                      frequency === f ? "bg-indigo-500 text-white shadow-lg" : "bg-[var(--input-bg)] text-[var(--text-secondary)] hover:bg-[var(--input-bg)]/80 hover:text-[var(--text-primary)]"
                     )}
                   >
                     {f}
@@ -639,7 +649,7 @@ export const Delivery: React.FC = () => {
                     onClick={() => setTimeOfDay(t)}
                     className={cn(
                       "px-6 py-3 rounded-xl text-xs font-black uppercase tracking-widest transition-all",
-                      timeOfDay === t ? "bg-indigo-500 text-white shadow-lg" : "bg-white/5 text-gray-500 hover:bg-white/10"
+                      timeOfDay === t ? "bg-indigo-500 text-white shadow-lg" : "bg-[var(--input-bg)] text-[var(--text-secondary)] hover:bg-[var(--input-bg)]/80 hover:text-[var(--text-primary)]"
                     )}
                   >
                     {t}
@@ -657,12 +667,12 @@ export const Delivery: React.FC = () => {
               <select 
                 value={timezone}
                 onChange={(e) => setTimezone(e.target.value)}
-                className="w-full bg-white/5 border border-white/10 rounded-2xl px-6 py-4 outline-none transition-all focus:ring-2 focus:ring-indigo-500 text-sm"
+                className="w-full bg-[var(--input-bg)] border border-[var(--border-color)] text-[var(--text-primary)] rounded-2xl px-6 py-4 outline-none transition-all focus:ring-2 focus:ring-indigo-500 text-sm"
               >
                 {(Intl as any).supportedValuesOf ? (Intl as any).supportedValuesOf('timeZone').map((tz: string) => (
-                  <option key={tz} value={tz} className="bg-black text-white">{tz}</option>
+                  <option key={tz} value={tz} className="bg-[var(--dropdown-bg)] text-[var(--text-primary)]">{tz}</option>
                 )) : (
-                  <option value={timezone}>{timezone}</option>
+                  <option value={timezone} className="bg-[var(--dropdown-bg)] text-[var(--text-primary)]">{timezone}</option>
                 )}
               </select>
             </div>
@@ -686,7 +696,7 @@ export const Delivery: React.FC = () => {
               <button 
                 type="button"
                 onClick={() => setIsEditing(false)}
-                className="w-full md:w-auto px-12 py-6 bg-white/5 rounded-3xl text-[var(--text-secondary)] font-bold active:scale-95 transition-all"
+                className="w-full md:w-auto px-12 py-6 bg-[var(--input-bg)] text-[var(--text-secondary)] rounded-3xl font-bold active:scale-95 transition-all"
               >
                 Cancel
               </button>

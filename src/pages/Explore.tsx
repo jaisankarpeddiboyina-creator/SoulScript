@@ -19,11 +19,13 @@ import {
   Image as ImageIcon
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
+import { useAuth } from '../context/AuthContext';
 import { QuoteCard, QuoteCardHandle } from '../components/QuoteCard';
 import JSZip from 'jszip';
 import { Quote, ViewMode, QuoteLength, QuoteCategory, QuoteSort } from '../types';
-import { CATEGORIES, CATEGORY_MAP, FALLBACK_QUOTES, SORT_OPTIONS } from '../constants';
+import { CATEGORIES, CATEGORY_MAP, FALLBACK_QUOTES, SORT_OPTIONS, PHOTO_KEYWORDS } from '../constants';
 import { cn } from '../lib/utils';
+import { pocketbaseService } from '../services/pocketbase';
 
 export const Explore: React.FC = () => {
   const { 
@@ -37,6 +39,7 @@ export const Explore: React.FC = () => {
     isSelectMode,
     setIsSelectMode
   } = useApp();
+  const { canDownload, incrementDownload, isLoggedIn } = useAuth();
   
   const { category, search, length: lengthFilter, sort } = exploreFilters;
 
@@ -81,6 +84,9 @@ export const Explore: React.FC = () => {
   const handleBulkDownload = async (format: 'zip' | 'gallery') => {
     setShowDownloadOptions(false);
     if (selectedQuoteIds.size === 0) return;
+    
+    // Check download limits for the whole batch
+    if (!canDownload(selectedQuoteIds.size)) return;
     
     setIsBulkDownloading(true);
     addToast('Preparing your cards...', 'info');
@@ -132,6 +138,10 @@ export const Explore: React.FC = () => {
           }
         }
       }
+      
+      // Increment counter by the amount of selected quotes
+      await incrementDownload(selectedQuoteIds.size);
+      
       addToast('Downloaded successfully', 'success');
       setIsSelectMode(false);
     } catch (err) {
@@ -174,6 +184,26 @@ export const Explore: React.FC = () => {
           dateAdded: new Date(Date.now() - q.id * 1000000).toISOString()
         })) as Quote[];
         
+        // Save to PocketBase if logged in
+        if (isLoggedIn) {
+          const isMobile = window.innerWidth < 768;
+          newResults.forEach(async (quote, idx) => {
+            const categoryOptions = CATEGORY_MAP[category] || CATEGORY_MAP.all;
+            const catKeyword = categoryOptions[idx % categoryOptions.length];
+            const lock = Math.floor(Math.random() * 10000);
+            const imageUrl = `https://loremflickr.com/${isMobile ? "800/1000" : "1920/1080"}/${encodeURIComponent(catKeyword)}?lock=${lock}&cors=1`;
+            
+            await pocketbaseService.saveQuote({
+              quoteId: quote._id,
+              quoteText: quote.content,
+              author: quote.author,
+              category: quote.tags[0],
+              tags: quote.tags,
+              imageUrl
+            });
+          });
+        }
+
         setAllQuotes(prev => {
           if (isNewCategory) return newResults;
           const existingIds = new Set(prev.map(q => q._id));
@@ -214,9 +244,8 @@ export const Explore: React.FC = () => {
     const isMobile = window.innerWidth < 768;
     newQuotes.forEach((quote, i) => {
       const idx = startIndex + i;
-      const categoryOptions = CATEGORY_MAP[category] || CATEGORY_MAP.all;
-      const catKeyword = categoryOptions[idx % categoryOptions.length];
-      const keyword = catKeyword;
+      // Use the complete curated list to rotate through all cards
+      const keyword = PHOTO_KEYWORDS[idx % PHOTO_KEYWORDS.length];
       
       // Technique 1 & 3: Unique lock per quote, track used locks
       let lock = Math.floor(Math.random() * 10000);
@@ -321,13 +350,11 @@ export const Explore: React.FC = () => {
 
 
   return (
-    <div className="space-y-8">
-      {/* Filters are now in the Global Header */}
-
+    <div className="space-y-0 md:space-y-4">
       {/* Content Area */}
       {viewMode === 'grid' ? (
-        <div className="flex flex-col gap-12 pb-[80px]">
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-3 xl:grid-cols-4 gap-4 md:gap-6">
+        <div className="flex flex-col gap-0 md:gap-12 pb-[80px]">
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-3 xl:grid-cols-4 gap-2 md:gap-6 pt-0 md:pt-4">
             <AnimatePresence mode="popLayout">
               {loading && allQuotes.length === 0 ? (
                 // Skeleton Grid
@@ -352,7 +379,7 @@ export const Explore: React.FC = () => {
                       isSelected={selectedQuoteIds.has(quote._id)}
                       onToggleSelect={() => toggleSelect(quote._id)}
                       className={cn(
-                        "h-[280px] md:h-auto md:aspect-auto",
+                        "h-[260px] md:h-auto md:aspect-auto",
                         quote.content.length > 150 ? "md:aspect-[3/5]" : quote.content.length < 60 ? "md:aspect-square" : "md:aspect-[3/4]"
                       )}
                     />
@@ -404,7 +431,7 @@ export const Explore: React.FC = () => {
           )}
         </div>
       ) : (
-        <div className="fixed inset-0 top-[170px] md:top-[160px] z-20 bg-dark-bg overflow-y-auto snap-y snap-mandatory no-scrollbar h-[calc(100dvh-170px)] md:h-[calc(100dvh-160px)]">
+        <div className="fixed inset-0 z-20 bg-dark-bg overflow-y-auto snap-y snap-mandatory no-scrollbar h-[100dvh]">
           {loading && allQuotes.length === 0 ? (
             <div className="h-full w-full shimmer-bg" />
           ) : filteredQuotes.map((quote, index) => (
@@ -466,53 +493,56 @@ export const Explore: React.FC = () => {
       <AnimatePresence>
         {isSelectMode && (
           <motion.div
-            initial={{ y: 100, opacity: 0 }}
-            animate={{ y: 0, opacity: 1 }}
-            exit={{ y: 100, opacity: 0 }}
-            className="fixed bottom-[85px] md:bottom-8 left-4 right-4 z-[60] flex justify-center"
+            initial={{ y: 100, opacity: 0, x: '-50%' }}
+            animate={{ y: 0, opacity: 1, x: '-50%' }}
+            exit={{ y: 100, opacity: 0, x: '-50%' }}
+            className="fixed bottom-[88px] md:bottom-12 left-1/2 z-[1000] flex flex-row items-center justify-between gap-1.5 md:gap-3 p-1.5 md:p-2 bg-black/95 backdrop-blur-3xl rounded-2xl shadow-[0_30px_100px_rgba(0,0,0,0.9)] border border-white/20 w-[calc(100%-24px)] md:w-[calc(100%-48px)] max-w-2xl overflow-hidden pointer-events-auto"
           >
-            <div className="bg-black/80 backdrop-blur-2xl rounded-2xl md:rounded-full px-6 py-4 flex items-center justify-between gap-4 shadow-[0_20px_50px_rgba(0,0,0,0.5)] border border-white/20 w-full max-w-2xl">
-              <div className="flex items-center gap-4">
-                <button
-                  onClick={selectAll}
-                  className={cn(
-                    "px-5 py-2.5 flex items-center gap-2.5 text-[10px] font-black uppercase tracking-[0.15em] transition-all active:scale-95 shadow-lg rounded-xl border border-white/30",
-                    selectedQuoteIds.size === filteredQuotes.length 
-                      ? "bg-white text-black border-white" 
-                      : "bg-white/10 text-white hover:bg-white/20"
-                  )}
-                >
-                  {selectedQuoteIds.size === filteredQuotes.length ? (
-                    <CheckSquare size={16} strokeWidth={3} />
-                  ) : (
-                    <Square size={16} strokeWidth={2.5} className="text-white/60" />
-                  )}
-                  <span>Select All</span>
-                </button>
-                <div className="w-[1px] h-6 bg-white/20" />
-                <div className="flex items-center px-4 py-1.5 rounded-full bg-indigo-500/20 border border-indigo-500/30">
-                  <span className="text-[10px] font-black uppercase tracking-[0.15em] text-indigo-400">
-                    {selectedQuoteIds.size} {selectedQuoteIds.size === 1 ? 'Quote' : 'Quotes'} Selected
-                  </span>
-                </div>
+            <div className="flex items-center gap-1.5 md:gap-2.5 shrink-0">
+              <motion.button
+                whileTap={{ scale: 0.96 }}
+                id="bulk-select-all-btn"
+                onClick={selectAll}
+                className={cn(
+                  "h-10 md:h-11 px-2.5 md:px-4 flex items-center justify-center gap-1.5 text-[10px] md:text-[12px] font-extrabold uppercase tracking-wider transition-all rounded-xl border cursor-pointer",
+                  selectedQuoteIds.size === filteredQuotes.length 
+                    ? "bg-white text-black border-white shadow-lg" 
+                    : "bg-white/5 text-white border-white/10 hover:bg-white/10"
+                )}
+              >
+                <Square id="select-all-icon" size={13} className={cn(selectedQuoteIds.size === filteredQuotes.length ? "fill-black" : "text-white/40")} />
+                <span>{selectedQuoteIds.size === filteredQuotes.length ? 'NONE' : 'ALL'}</span>
+              </motion.button>
+              
+              <div className="flex items-center justify-center w-7 h-7 md:w-8 md:h-8 rounded-full bg-indigo-500/10 border border-indigo-500/25 shrink-0">
+                 <span className="text-[10px] md:text-[12px] font-black text-indigo-400">
+                  {selectedQuoteIds.size}
+                </span>
               </div>
+            </div>
 
-              <div className="flex items-center gap-4">
-                <button
-                  onClick={() => setIsSelectMode(false)}
-                  className="px-4 py-2 text-[10px] font-black uppercase tracking-[0.15em] text-white/70 hover:text-white transition-colors"
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={() => setShowDownloadOptions(true)}
-                  disabled={selectedQuoteIds.size === 0 || isBulkDownloading}
-                  className="px-7 py-3 gradient-bg rounded-xl text-[10px] font-black uppercase tracking-[0.15em] text-white shadow-[0_10px_20px_rgba(139,92,246,0.3)] active:scale-95 transition-all disabled:opacity-30 disabled:grayscale flex items-center gap-2"
-                >
-                  {isBulkDownloading ? <Loader2 size={16} className="animate-spin" /> : <Download size={16} strokeWidth={2.5} />}
-                  <span>Download</span>
-                </button>
-              </div>
+            <div className="flex items-center gap-1.5 md:gap-3 flex-1 justify-end min-w-0">
+              <motion.button
+                whileTap={{ scale: 0.96 }}
+                id="bulk-cancel-btn"
+                onClick={() => setIsSelectMode(false)}
+                className="h-10 md:h-11 px-2.5 md:px-4 text-[10px] md:text-[12px] font-extrabold uppercase tracking-widest text-white/50 hover:text-white hover:bg-white/5 rounded-xl transition-all whitespace-nowrap cursor-pointer flex items-center justify-center"
+              >
+                CANCEL
+              </motion.button>
+              <motion.button
+                whileTap={selectedQuoteIds.size > 0 ? { scale: 0.96 } : {}}
+                id="bulk-download-btn"
+                onClick={() => setShowDownloadOptions(true)}
+                disabled={selectedQuoteIds.size === 0 || isBulkDownloading}
+                className={cn(
+                  "h-10 md:h-11 px-3.5 md:px-5 bg-gradient-to-br from-indigo-500 via-purple-500 to-pink-500 rounded-xl text-[10px] md:text-[12px] font-extrabold uppercase tracking-widest text-white shadow-xl transition-all flex items-center gap-1.5 whitespace-nowrap cursor-pointer",
+                  "disabled:opacity-20 disabled:grayscale disabled:scale-100 disabled:shadow-none disabled:cursor-not-allowed"
+                )}
+              >
+                {isBulkDownloading ? <Loader2 size={14} className="animate-spin" /> : <Download size={14} strokeWidth={2.5} />}
+                <span>DOWNLOAD</span>
+              </motion.button>
             </div>
           </motion.div>
         )}

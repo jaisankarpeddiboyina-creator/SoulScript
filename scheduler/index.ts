@@ -40,6 +40,14 @@ const pb = new PocketBase(process.env.POCKETBASE_URL);
 const resend = new Resend(process.env.RESEND_API_KEY);
 const bot = new TelegramBot(process.env.TELEGRAM_BOT_TOKEN!);
 
+const PHOTO_KEYWORDS = [
+  'nature', 'landscape', 'mountains', 'ocean', 'forest', 'sky', 'sunset', 'sunrise', 
+  'river', 'waterfall', 'flowers', 'garden', 'desert', 'snow', 'clouds', 'stars', 
+  'moon', 'beach', 'lake', 'valley', 'cliff', 'cave', 'island', 'jungle', 'autumn', 
+  'spring', 'rain', 'storm', 'fog', 'aurora', 'volcano', 'canyon', 'meadow', 
+  'glacier', 'coral', 'earth', 'space', 'abstract'
+];
+
 async function init() {
   await pb.admins.authWithPassword(
     process.env.POCKETBASE_ADMIN_EMAIL!,
@@ -114,9 +122,9 @@ async function sendEmail(sub: any, quotes: any[]) {
       <h1 style="color: #8b5cf6; margin-bottom: 40px;">SoulScript</h1>
       <p style="color: #9ca3af; margin-bottom: 60px;">Your ${sub.timeOfDay} delivery of inspiration.</p>
       
-      ${quotes.map(q => `
+      ${quotes.map((q, i) => `
         <div style="margin-bottom: 40px; border-radius: 20px; overflow: hidden; background: #111; border: 1px solid #333;">
-          <img src="https://loremflickr.com/800/600/nature,meditation?lock=${Math.random()}" style="width: 100%; height: auto;" />
+          <img src="https://loremflickr.com/800/600/${PHOTO_KEYWORDS[i % PHOTO_KEYWORDS.length]}?lock=${Math.random()}" style="width: 100%; height: auto;" />
           <div style="padding: 30px;">
             <p style="font-size: 24px; font-style: italic; margin-bottom: 20px;">"${q.content}"</p>
             <p style="color: #8b5cf6; font-weight: bold;">— ${q.author}</p>
@@ -145,9 +153,9 @@ async function sendTelegram(sub: any, quotes: any[]) {
   // Send images with captions in chunks of 10
   for (let i = 0; i < quotes.length; i += 10) {
     const chunk = quotes.slice(i, i + 10);
-    const media: any[] = chunk.map(q => ({
+    const media: any[] = chunk.map((q, i) => ({
       type: 'photo',
-      media: `https://loremflickr.com/800/600/nature,meditation?lock=${Math.random()}`,
+      media: `https://loremflickr.com/800/600/${PHOTO_KEYWORDS[i % PHOTO_KEYWORDS.length]}?lock=${Math.random()}`,
       caption: `"${q.content}"\n\n— ${q.author} | ${q.tags.join(', ')}`
     }));
 

@@ -5,7 +5,12 @@ import { ExploreFilterGrid } from './ExploreFilterGrid';
 import { cn } from '../lib/utils';
 import { Filter } from 'lucide-react';
 
-export const Header: React.FC = () => {
+interface HeaderProps {
+  onSignInClick: () => void;
+  onProfileClick: () => void;
+}
+
+export const Header: React.FC<HeaderProps> = ({ onSignInClick, onProfileClick }) => {
   const { viewMode, activeTab } = useApp();
   const [headerVisible, setHeaderVisible] = useState(true);
   const headerRef = useRef<HTMLDivElement>(null);
@@ -35,9 +40,20 @@ export const Header: React.FC = () => {
   }, []);
 
   useEffect(() => {
-    if (headerRef.current) {
-      setHeaderHeight(headerRef.current.offsetHeight);
-    }
+    if (!headerRef.current) return;
+    
+    const resizeObserver = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        setHeaderHeight(entry.target.clientHeight);
+      }
+    });
+    
+    resizeObserver.observe(headerRef.current);
+    
+    // Fallback standard measurements
+    setHeaderHeight(headerRef.current.offsetHeight);
+    
+    return () => resizeObserver.disconnect();
   }, [activeTab, viewMode]);
 
   // Reels mode behavior
@@ -67,21 +83,21 @@ export const Header: React.FC = () => {
           headerVisible ? "translate-y-0" : "-translate-y-full"
         )}
       >
-        <Navbar />
+        <Navbar onSignInClick={onSignInClick} onProfileClick={onProfileClick} />
         {activeTab === 'explore' && <ExploreFilterGrid />}
       </header>
 
       {/* Spacer to push content down */}
       <div style={{ height: headerVisible || viewMode !== 'reels' ? headerHeight : 0 }} className="transition-[height] duration-300" />
 
-      {/* Reels Pill */}
+      {/* Reels Filter Button */}
       {showPill && !headerVisible && (
         <button
           onClick={toggleHeaderTemporarily}
-          className="fixed top-4 left-1/2 -translate-x-1/2 z-[110] px-4 py-2 bg-indigo-600/90 backdrop-blur-md rounded-full text-white text-[10px] font-black uppercase tracking-widest flex items-center gap-2 shadow-2xl animate-bounce"
+          className="fixed top-6 left-6 z-[110] p-3 bg-black/40 backdrop-blur-xl border border-white/10 rounded-full text-white shadow-2xl hover:bg-black/60 transition-all hover:scale-110 active:scale-95"
+          title="Show Filters"
         >
-          <Filter size={14} />
-          <span>Filters</span>
+          <Filter size={20} />
         </button>
       )}
 

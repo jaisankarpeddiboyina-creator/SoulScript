@@ -12,15 +12,19 @@ export const PlaylistModal: React.FC = () => {
 
   useEffect(() => {
     if (playlistModalQuote) {
-      setPlaylists(getPlaylists());
+      const fetchPlaylists = async () => {
+        const data = await getPlaylists();
+        setPlaylists(data);
+      };
+      fetchPlaylists();
     }
   }, [playlistModalQuote]);
 
-  const handleAddToPlaylist = (playlistId: string, playlistName: string) => {
+  const handleAddToPlaylist = async (playlistId: string, playlistName: string) => {
     if (!playlistModalQuote) return;
     
-    addQuoteToPlaylist(playlistId, {
-      id: playlistModalQuote.id,
+    await addQuoteToPlaylist(playlistId, {
+      quoteId: playlistModalQuote.id, // Fixed mapping
       quoteText: playlistModalQuote.quoteText,
       author: playlistModalQuote.author,
       category: playlistModalQuote.category,
@@ -31,15 +35,23 @@ export const PlaylistModal: React.FC = () => {
     setPlaylistModalQuote(null);
   };
 
-  const handleCreateAndAdd = (e: React.FormEvent) => {
+  const handleCreateAndAdd = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newPlaylistName.trim() || !playlistModalQuote) return;
     
-    const newPlaylist = createPlaylist(newPlaylistName);
-    handleAddToPlaylist(newPlaylist.id, newPlaylist.name);
-    
-    setNewPlaylistName('');
-    setShowCreate(false);
+    try {
+      const newPlaylist = await createPlaylist(newPlaylistName);
+      await handleAddToPlaylist(newPlaylist.id, newPlaylist.name);
+      
+      setNewPlaylistName('');
+      setShowCreate(false);
+    } catch (err: any) {
+      if (err.message === 'GUEST_LIMIT_REACHED') {
+        addToast('Sign in to create unlimited playlists', 'info');
+      } else {
+        addToast('Failed to create playlist', 'error');
+      }
+    }
   };
 
   if (!playlistModalQuote) return null;
@@ -57,9 +69,9 @@ export const PlaylistModal: React.FC = () => {
         initial={{ scale: 0.9, opacity: 0, y: 20 }}
         animate={{ scale: 1, opacity: 1, y: 0 }}
         exit={{ scale: 0.9, opacity: 0, y: 20 }}
-        className="relative w-full max-w-sm glass-heavy rounded-[2.5rem] overflow-hidden shadow-2xl border border-white/10"
+        className="relative w-full md:max-w-sm glass-heavy rounded-2xl md:rounded-[2.5rem] overflow-hidden shadow-2xl border border-white/10 max-h-[90vh] flex flex-col"
       >
-        <div className="p-8 pb-4">
+        <div className="p-6 md:p-8 pb-4">
           <div className="flex justify-between items-center mb-6">
             <h2 className="text-xl font-serif font-bold text-[var(--text-primary)]">Add to Playlist</h2>
             <button onClick={() => setPlaylistModalQuote(null)} className="p-2 -mr-2 text-gray-500 hover:text-white transition-colors">

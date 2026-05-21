@@ -11,9 +11,11 @@ import {
   PlusCircle,
   Loader2,
   Filter as FilterIcon,
-  X
+  X,
+  Lock
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
+import { useAuth } from '../context/AuthContext';
 import { cn } from '../lib/utils';
 import { QuoteCard } from '../components/QuoteCard';
 import { 
@@ -24,6 +26,7 @@ import {
   checkQuoteExists,
   isPocketBaseHealthy
 } from '../services/pocketbase';
+import { PHOTO_KEYWORDS } from '../constants';
 import axios from 'axios';
 import JSZip from 'jszip';
 
@@ -42,6 +45,7 @@ const ALPHABET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('');
 
 export const Collections: React.FC = () => {
   const { addToast } = useApp();
+  const { isGuest, isLoggedIn, setGatingType } = useAuth();
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
   const [syncProgress, setSyncProgress] = useState({ current: 0, total: 0 });
@@ -62,12 +66,18 @@ export const Collections: React.FC = () => {
 
   useEffect(() => {
     loadData();
-  }, []);
+  }, [isLoggedIn]);
 
   const loadData = async () => {
     setLoading(true);
     setError(false);
     try {
+      if (isGuest) {
+        setIsFallback(true);
+        await loadFallbackData();
+        return;
+      }
+      
       const healthy = await isPocketBaseHealthy();
       if (!healthy) {
         setIsFallback(true);
@@ -110,7 +120,8 @@ export const Collections: React.FC = () => {
             slug: q.authorSlug,
             count: 1,
             // Use author name as keyword and slug as cache breaker for uniqueness
-            firstImage: `https://loremflickr.com/800/445/${encodeURIComponent(q.author)}?random=${q.authorSlug}`
+            // Use safe photo keywords instead of author name to avoid human faces
+            firstImage: `https://loremflickr.com/800/445/${PHOTO_KEYWORDS[Math.floor(Math.random() * PHOTO_KEYWORDS.length)]}?random=${q.authorSlug}`
           };
         } else {
           authorsMap[q.authorSlug].count++;
@@ -124,6 +135,11 @@ export const Collections: React.FC = () => {
   };
 
   const syncQuotes = async () => {
+    if (isGuest) {
+      setGatingType('auth_required');
+      return;
+    }
+
     if (isFallback) {
       setSyncing(true);
       await loadFallbackData();
@@ -152,8 +168,9 @@ export const Collections: React.FC = () => {
             continue;
           }
 
-          // Get resolved image URL - using author and quote ID for uniqueness
-          const imageUrl = `https://loremflickr.com/1920/1080/${encodeURIComponent(q.author)}?random=${q._id}`;
+          // Get resolved image URL - using safe keywords and quote ID for uniqueness
+          const safeKeyword = PHOTO_KEYWORDS[i % PHOTO_KEYWORDS.length];
+          const imageUrl = `https://loremflickr.com/1920/1080/${safeKeyword}?random=${q._id}`;
           
           try {
             const resolveRes = await axios.get(`/api/resolve-image?url=${encodeURIComponent(imageUrl)}`);
@@ -210,8 +227,8 @@ export const Collections: React.FC = () => {
           author: q.author,
           authorSlug: q.authorSlug,
           category: q.tags[0] || 'Life',
-          // Use author and quote ID to ensure unique background image
-          imageUrl: `https://loremflickr.com/1920/1080/${encodeURIComponent(q.author)}?random=${q._id}`
+          // Use safe keywords to ensure no human faces
+          imageUrl: `https://loremflickr.com/1920/1080/${PHOTO_KEYWORDS[Math.floor(Math.random() * PHOTO_KEYWORDS.length)]}?random=${q._id}`
         }));
         setCollectionQuotes(mappedQuotes);
       } else {
@@ -355,7 +372,7 @@ export const Collections: React.FC = () => {
   }
 
   return (
-    <div className="space-y-12 pb-32 md:pb-12">
+    <div className="space-y-12 pb-32 md:pb-12 min-h-screen bg-[var(--bg-primary)]">
       {/* Header */}
       <div className="space-y-4">
         <div className="flex items-center gap-3">
@@ -394,7 +411,7 @@ export const Collections: React.FC = () => {
           By Category
         </h2>
         
-        <div className="flex gap-4 overflow-x-auto pb-4 px-2 no-scrollbar scroll-smooth">
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3 md:gap-4 px-1">
           {CATEGORIES.map((cat) => (
             <motion.button
               key={cat.name}
@@ -402,13 +419,12 @@ export const Collections: React.FC = () => {
               whileTap={{ scale: 0.95 }}
               onClick={() => handleOpenCollection('category', cat.name)}
               className={cn(
-                "relative group flex-shrink-0 w-48 h-32 rounded-3xl border border-white/10 overflow-hidden shadow-xl"
+                "relative group w-full h-24 sm:h-28 rounded-2xl border border-white/10 overflow-hidden shadow-xl"
               )}
             >
               <div className={cn("absolute inset-0 bg-linear-to-br opacity-80 group-hover:opacity-100 transition-opacity", cat.gradient)} />
-              <div className="relative p-6 h-full flex flex-col justify-end">
-                <span className="text-lg font-bold text-white drop-shadow-md">{cat.name}</span>
-                <span className="text-[10px] text-white/70 font-bold uppercase tracking-widest">Library</span>
+              <div className="relative p-3 h-full flex flex-col justify-end">
+                <span className="text-sm font-bold text-white drop-shadow-md leading-tight">{cat.name}</span>
               </div>
             </motion.button>
           ))}
@@ -481,9 +497,9 @@ export const Collections: React.FC = () => {
         )}
 
         {loading ? (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-            {[1, 2, 3, 4, 5, 6].map(i => (
-              <div key={i} className="h-40 glass border border-white/5 rounded-3xl animate-pulse" />
+          <div className="grid grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
+            {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map(i => (
+              <div key={i} className="aspect-[4/5] glass border border-white/5 rounded-2xl animate-pulse" />
             ))}
           </div>
         ) : filteredAuthors.length === 0 ? (
@@ -493,35 +509,30 @@ export const Collections: React.FC = () => {
             </p>
           </div>
         ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3 sm:gap-4 md:gap-6">
             {filteredAuthors.map((author) => (
               <motion.button
                 key={author.slug}
                 whileHover={{ y: -5 }}
                 onClick={() => handleOpenCollection('author', author.name, author.slug)}
-                className="group glass border border-white/5 hover:border-indigo-500/30 rounded-3xl p-4 flex flex-col gap-4 text-left transition-all shadow-xl"
+                className="group bg-neutral-900/40 backdrop-blur-xl border border-white/10 hover:border-indigo-500/30 rounded-2xl sm:rounded-3xl p-3 flex flex-col gap-3 text-left transition-all shadow-2xl"
               >
-                <div className="relative aspect-video rounded-2xl overflow-hidden bg-black/40">
+                <div className="relative aspect-video rounded-xl sm:rounded-2xl overflow-hidden bg-black/40">
                   <img 
                     src={author.firstImage} 
                     alt={author.name}
-                    onError={(e) => {
-                      // Fallback to picsum with author slug as seed if loremflickr fails
-                      (e.target as HTMLImageElement).src = `https://picsum.photos/seed/${author.slug}/800/445`;
-                    }}
                     className="w-full h-full object-cover opacity-60 group-hover:opacity-100 transition-opacity duration-700" 
                   />
                   <div className="absolute inset-0 bg-linear-to-t from-black/80 to-transparent" />
-                  <div className="absolute bottom-3 left-4 right-4 flex justify-between items-center">
-                    <span className="text-xs font-black uppercase tracking-widest text-white/70">Collection</span>
-                    <div className="p-2 bg-indigo-600 rounded-lg text-white shadow-lg shadow-indigo-600/40">
-                      <ChevronRight size={16} />
+                  <div className="absolute bottom-2 right-2">
+                    <div className="p-1.5 bg-indigo-600 rounded-lg text-white shadow-lg shadow-indigo-600/40">
+                      <ChevronRight size={14} />
                     </div>
                   </div>
                 </div>
-                <div className="px-2 pb-2">
-                  <h3 className="text-lg font-bold text-[var(--text-primary)] group-hover:text-indigo-400 transition-colors">{author.name}</h3>
-                  <p className="text-xs text-[var(--text-secondary)] font-medium uppercase tracking-widest">{author.count} {author.count === 1 ? 'Quote' : 'Quotes'}</p>
+                <div className="px-1 pb-1">
+                  <h3 className="text-xs sm:text-sm md:text-base font-bold text-white group-hover:text-indigo-400 transition-colors leading-normal whitespace-normal">{author.name}</h3>
+                  <p className="text-[10px] text-white/60 font-medium uppercase tracking-widest">{author.count} {author.count === 1 ? 'Quote' : 'Quotes'}</p>
                 </div>
               </motion.button>
             ))}

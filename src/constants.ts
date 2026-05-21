@@ -1,18 +1,24 @@
 import { QuoteCategory, QuoteSort, Quote } from './types';
 
+export const PHOTO_KEYWORDS = [
+  'nature', 'landscape', 'mountains', 'ocean', 'forest', 'sky', 'sunset', 'sunrise', 
+  'river', 'waterfall', 'flowers', 'garden', 'desert', 'snow', 'clouds', 'stars', 
+  'moon', 'beach', 'lake', 'valley', 'meadow', 'aurora', 'canyon'
+];
+
 export const CATEGORY_MAP: Record<QuoteCategory | 'all', string[]> = {
-  all: ['cinematic', 'epic', 'grand', 'inspiring', 'view', 'depth'],
-  motivational: ["success", "ambition", "hustle", "goals", "winner", "achieve"],
-  love: ["romance", "couple", "sunset", "heart", "flowers", "together"],
-  wisdom: ["mountains", "forest", "ocean", "stars", "ancient", "peace"],
-  humor: ["colorful", "fun", "laugh", "playful", "bright", "joy"],
-  life: ["lifestyle", "journey", "road", "city", "morning", "freedom"],
-  inspiration: ["sky", "light", "sunrise", "spark", "dream", "horizon"],
-  philosophy: ["abstract", "dark", "cosmos", "shadow", "mind", "depth"],
-  friendship: ["together", "hands", "warmth", "smile", "bond", "group"],
-  success: ["money", "rich", "empire", "luxury", "tower", "office"],
-  stoicism: ["statue", "stone", "mountain", "calm", "winter", "strength"],
-  religion: ["church", "temple", "mosque", "light", "pray", "peace"]
+  all: PHOTO_KEYWORDS,
+  motivational: ['mountains', 'sunrise', 'landscape', 'valley', 'sky', 'clouds'],
+  love: ['sunset', 'flowers', 'ocean', 'beach', 'stars', 'lake'],
+  wisdom: ['forest', 'river', 'desert', 'mountain', 'moon', 'stars'],
+  humor: ['garden', 'meadow', 'flowers', 'nature', 'landscape', 'sunrise'],
+  life: ['landscape', 'nature', 'river', 'forest', 'sky', 'ocean'],
+  inspiration: ['sunrise', 'sky', 'clouds', 'aurora', 'stars', 'sunset'],
+  philosophy: ['moon', 'stars', 'forest', 'ocean', 'mountain', 'snow'],
+  friendship: ['beach', 'lake', 'valley', 'meadow', 'garden', 'nature'],
+  success: ['mountains', 'landscape', 'canyon', 'sky', 'clouds', 'ocean'],
+  stoicism: ['mountain', 'snow', 'desert', 'forest', 'river', 'landscape'],
+  religion: ['sky', 'stars', 'sunrise', 'nature', 'flowers', 'lake']
 };
 
 export const SORT_OPTIONS: { id: QuoteSort; label: string }[] = [

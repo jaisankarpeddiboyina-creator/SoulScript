@@ -14,6 +14,7 @@ import {
   ArrowLeft
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
+import { useAuth } from '../context/AuthContext';
 import { getPlaylists, createPlaylist, deletePlaylist, removeQuoteFromPlaylist, Playlist } from '../services/storage';
 import { QuoteCard, QuoteCardHandle } from '../components/QuoteCard';
 import { cn } from '../lib/utils';
@@ -21,6 +22,7 @@ import JSZip from 'jszip';
 
 export const Playlists: React.FC = () => {
   const { addToast } = useApp();
+  const { canDownload, incrementDownload } = useAuth();
   const [playlists, setPlaylists] = useState<Playlist[]>([]);
   const [activePlaylist, setActivePlaylist] = useState<Playlist | null>(null);
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -29,26 +31,40 @@ export const Playlists: React.FC = () => {
   const [isZipping, setIsZipping] = useState(false);
 
   useEffect(() => {
-    setPlaylists(getPlaylists());
+    const fetchPlaylists = async () => {
+      const data = await getPlaylists();
+      setPlaylists(data);
+    };
+    fetchPlaylists();
   }, []);
 
-  const handleCreatePlaylist = (e: React.FormEvent) => {
+  const handleCreatePlaylist = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newPlaylistName.trim()) return;
     
-    const newList = createPlaylist(newPlaylistName);
-    setPlaylists([...playlists, newList]);
-    setNewPlaylistName('');
-    setShowCreateModal(false);
-    addToast(`Created playlist: ${newList.name}`, 'success');
+    try {
+      const newList = await createPlaylist(newPlaylistName);
+      const updated = await getPlaylists();
+      setPlaylists(updated);
+      setNewPlaylistName('');
+      setShowCreateModal(false);
+      addToast(`Created playlist: ${newList.name}`, 'success');
+    } catch (err: any) {
+      if (err.message === 'GUEST_LIMIT_REACHED') {
+        addToast('Sign in to create unlimited playlists', 'info');
+      } else {
+        addToast('Failed to create playlist', 'error');
+      }
+    }
   };
 
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
 
-  const handleDeletePlaylist = (id: string, name: string) => {
+  const handleDeletePlaylist = async (id: string, name: string) => {
     if (confirmDeleteId === id) {
-      deletePlaylist(id);
-      setPlaylists(playlists.filter(p => p.id !== id));
+      await deletePlaylist(id);
+      const updated = await getPlaylists();
+      setPlaylists(updated);
       setConfirmDeleteId(null);
       addToast(`Deleted playlist: ${name}`, 'info');
     } else {
@@ -58,9 +74,9 @@ export const Playlists: React.FC = () => {
     }
   };
 
-  const handleRemoveQuote = (playlistId: string, quoteId: string) => {
-    removeQuoteFromPlaylist(playlistId, quoteId);
-    const updated = getPlaylists();
+  const handleRemoveQuote = async (playlistId: string, quoteId: string) => {
+    await removeQuoteFromPlaylist(playlistId, quoteId);
+    const updated = await getPlaylists();
     setPlaylists(updated);
     if (activePlaylist?.id === playlistId) {
       setActivePlaylist(updated.find(p => p.id === playlistId) || null);
@@ -72,6 +88,9 @@ export const Playlists: React.FC = () => {
 
   const downloadAllAsZip = async () => {
     if (!activePlaylist || activePlaylist.quotes.length === 0) return;
+    
+    // Check download limits for the whole playlist
+    if (!canDownload(activePlaylist.quotes.length)) return;
     
     setIsZipping(true);
     addToast('Preparing your playlist ZIP...', 'info');
@@ -96,6 +115,9 @@ export const Playlists: React.FC = () => {
       link.href = URL.createObjectURL(content);
       link.download = `SoulScript-Playlist-${activePlaylist.name.replace(/[^a-z0-9]/gi, '_')}-${Date.now()}.zip`;
       link.click();
+      
+      // Increment counter
+      await incrementDownload(activePlaylist.quotes.length);
       
       setIsZipping(false);
       addToast('Playlist downloaded!', 'success');
@@ -139,7 +161,7 @@ export const Playlists: React.FC = () => {
           </button>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 pb-20">
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-6 pb-20">
           <AnimatePresence>
             {activePlaylist.quotes.map((quote, idx) => (
               <motion.div
@@ -219,7 +241,7 @@ export const Playlists: React.FC = () => {
       </div>
 
       {/* Grid of Playlists */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6">
         <AnimatePresence>
           {filteredPlaylists.map((playlist, idx) => (
             <motion.div
