@@ -2,7 +2,7 @@ import React, { createContext, useContext, useEffect, useState } from 'react';
 import { pocketbaseService } from '../services/pocketbase';
 import { STORAGE_KEY, SUBSCRIPTION_KEY } from '../services/storage';
 
-export type GatingType = 'guest_limit' | 'free_limit' | 'premium_feature' | 'auth_required' | null;
+export type GatingType = 'guest_limit' | 'free_limit' | 'basic_limit' | 'premium_feature' | 'auth_required' | null;
 
 interface AuthContextType {
   user: any;
@@ -47,12 +47,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   });
 
   const isLoggedIn = !!user;
-  const isPremium = user?.plan === 'premium';
+  const isPremium = user?.plan === 'premium' || user?.plan === 'pro';
   const isGuest = !user;
   const plan = user?.plan || 'free';
   
   const downloadsToday = isGuest ? guestDownloads.count : (user?.downloadsToday || 0);
-  const downloadsLimit = isGuest ? 3 : (isPremium ? Infinity : 5);
+  const downloadsLimit = isGuest ? 3 : (plan === 'basic' ? 100 : (isPremium ? Infinity : 5));
   const isAtLimit = downloadsToday >= downloadsLimit;
 
   useEffect(() => {
@@ -168,6 +168,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     if (isPremium) return true;
     if (downloadsToday + count > downloadsLimit) {
       if (isGuest) setGatingType('guest_limit');
+      else if (plan === 'basic') setGatingType('basic_limit');
       else setGatingType('free_limit');
       return false;
     }

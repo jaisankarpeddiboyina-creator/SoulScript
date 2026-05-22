@@ -2,6 +2,7 @@ import React from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { X, Lock, Zap, LogIn, ArrowRight, Sparkles } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
+import { useApp } from '../context/AppContext';
 import { cn } from '../lib/utils';
 
 interface GatingModalProps {
@@ -10,6 +11,7 @@ interface GatingModalProps {
 
 export const GatingModal: React.FC<GatingModalProps> = ({ onSignInOpen }) => {
   const { gatingType, setGatingType } = useAuth();
+  const { setActiveTab } = useApp();
   
   if (!gatingType) return null;
 
@@ -28,19 +30,29 @@ export const GatingModal: React.FC<GatingModalProps> = ({ onSignInOpen }) => {
       case 'free_limit':
         return {
           title: "Daily Limit Reached",
-          message: "You've reached today's limit of 5 downloads. Upgrade to Premium for unlimited downloads and more features.",
+          message: "You've reached today's limit of 5 downloads. Upgrade to a paid plan for more high-quality downloads and features.",
           icon: <Zap className="text-white" />,
-          primaryAction: () => { /* Handle upgrade */ setGatingType(null); },
+          primaryAction: () => { setActiveTab('pricing'); setGatingType(null); },
           primaryLabel: "Upgrade Now",
+          secondaryLabel: "Maybe Later",
+          secondaryAction: () => setGatingType(null)
+        };
+      case 'basic_limit':
+        return {
+          title: "Daily Limit Reached",
+          message: "You've reached today's limit of 100 downloads for the BASIC plan. Upgrade to PRO for unlimited downloads and more.",
+          icon: <Zap className="text-white" />,
+          primaryAction: () => { setActiveTab('pricing'); setGatingType(null); },
+          primaryLabel: "Upgrade to PRO",
           secondaryLabel: "Maybe Later",
           secondaryAction: () => setGatingType(null)
         };
       case 'premium_feature':
         return {
           title: "Premium Feature",
-          message: "Custom fonts and high-res exports are a Premium feature. Upgrade to unlock the full SoulScript experience.",
+          message: "Custom fonts and high-res exports are a paid feature. Upgrade your plan to unlock the full SoulScript experience.",
           icon: <Sparkles className="text-white" />,
-          primaryAction: () => { /* Handle upgrade */ setGatingType(null); },
+          primaryAction: () => { setActiveTab('pricing'); setGatingType(null); },
           primaryLabel: "Upgrade Now",
           secondaryLabel: "Maybe Later",
           secondaryAction: () => setGatingType(null)

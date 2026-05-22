@@ -6,6 +6,7 @@ import https from "https";
 import { Resend } from "resend";
 import PocketBase from "pocketbase";
 import dotenv from "dotenv";
+import crypto from "crypto";
 
 dotenv.config();
 
@@ -184,6 +185,211 @@ async function startServer() {
       res.json(response.data);
     } catch (error: any) {
       res.status(500).json({ error: "Failed to fetch fallback quotes" });
+    }
+  });
+
+  // ==========================================
+  // PAYMENT & SUBSCRIPTION ENDPOINTS (RAZORPAY)
+  // ==========================================
+
+  // Create Razorpay subscription/payment order
+  app.post("/api/payments/create-order", async (req, res) => {
+    const { plan, billingCycle } = req.body;
+    if (!plan) return res.status(400).json({ error: "Plan type required" });
+
+    // Determine price in Paise (1 INR = 100 Paise)
+    let amount = 0;
+    if (plan === "basic") {
+      amount = 49 * 100; // ₹49
+    } else if (plan === "pro" || plan === "premium") {
+      amount = billingCycle === "yearly" ? 999 * 100 : 149 * 100; // ₹999 or ₹149
+    } else {
+      return res.status(400).json({ error: "Invalid plan" });
+    }
+
+    const keyId = process.env.RAZORPAY_KEY_ID;
+    const keySecret = process.env.RAZORPAY_KEY_SECRET;
+    const receipt = `rcpt_${plan}_${Date.now()}`;
+
+    // Sandbox Fallback
+    if (!keyId || !keySecret) {
+      console.warn("RAZORPAY_KEY_ID or RAZORPAY_KEY_SECRET not set. Generating sandbox checkout order.");
+      return res.json({
+        id: `order_sandbox_${Math.random().toString(36).substring(2, 11)}`,
+        entity: "order",
+        amount,
+        amount_due: amount,
+        amount_paid: 0,
+        currency: "INR",
+        receipt,
+        status: "created",
+        attempts: 0,
+        notes: [],
+        created_at: Math.floor(Date.now() / 1000),
+        isSandbox: true,
+        keyId: "rzp_test_sandbox_key"
+      });
+    }
+
+    try {
+      // Basic auth payload for Razorpay Orders API
+      const auth = Buffer.from(`${keyId}:${keySecret}`).toString("base64");
+      const rzpResponse = await axios.post(
+        "https://api.razorpay.com/v1/orders",
+        {
+          amount,
+          currency: "INR",
+          receipt,
+        },
+        {
+          headers: {
+            Authorization: `Basic ${auth}`,
+            "Content-Type": "application/json",
+          },
+        }
+      );
+
+      res.json({
+        ...rzpResponse.data,
+        keyId,
+        isSandbox: false
+      });
+    } catch (error: any) {
+      const errorMsg = error.response?.data?.error?.description || error.message;
+      console.error("Razorpay API Order Error:", errorMsg);
+      res.status(500).json({ error: `Razorpay Order Error: ${errorMsg}` });
+    }
+  });
+
+  // Verify signature and update plan in database
+  app.post("/api/payments/verify", async (req, res) => {
+    const { razorpay_payment_id, razorpay_order_id, razorpay_signature, userId, plan } = req.body;
+    
+    if (!userId || !plan) {
+      return res.status(400).json({ error: "Missing required parameters (userId, plan)" });
+    }
+
+    const keySecret = process.env.RAZORPAY_KEY_SECRET;
+    const isSandboxOrder = razorpay_order_id && razorpay_order_id.startsWith("order_sandbox_");
+
+    if (!keySecret || isSandboxOrder) {
+      console.warn("Signature verification bypassed (Sandbox order or keys missing).");
+      try {
+        await pbAuth();
+        await pb.collection("users").update(userId, { plan });
+        
+        // Log in subscriptions history
+        try {
+          await pb.collection("subscriptions").create({
+            user: userId,
+            plan,
+            status: "active",
+            startDate: new Date().toISOString(),
+            razorpayPaymentId: razorpay_payment_id || "pay_sandbox_12345"
+          });
+        } catch (subErr) {
+          console.error("Could not write record to subscriptions collection:", subErr);
+        }
+
+        return res.json({ success: true, plan, sandbox: true });
+      } catch (pbError: any) {
+        console.error("Database update error:", pbError.message);
+        return res.status(500).json({ error: "Database plan update failed" });
+      }
+    }
+
+    // Verify Real Signature
+    try {
+      const hmac = crypto.createHmac("sha256", keySecret);
+      hmac.update(`${razorpay_order_id}|${razorpay_payment_id}`);
+      const generated_signature = hmac.digest("hex");
+
+      if (generated_signature !== razorpay_signature) {
+        return res.status(400).json({ error: "Signature mismatch. Verification failed." });
+      }
+
+      // Upgrade in Database
+      await pbAuth();
+      await pb.collection("users").update(userId, { plan });
+
+      // Save in subscriptions history
+      try {
+        await pb.collection("subscriptions").create({
+          user: userId,
+          plan,
+          status: "active",
+          startDate: new Date().toISOString(),
+          razorpayPaymentId: razorpay_payment_id
+        });
+      } catch (subErr) {
+        console.error("Could not write record to subscriptions collection:", subErr);
+      }
+
+      res.json({ success: true, plan });
+    } catch (error: any) {
+      console.error("Secure signature processing error:", error.message);
+      res.status(500).json({ error: "Verification server-side error" });
+    }
+  });
+
+  // Cancel subscription and return to free
+  app.post("/api/payments/cancel", async (req, res) => {
+    const { userId } = req.body;
+    if (!userId) return res.status(400).json({ error: "userId required" });
+
+    try {
+      await pbAuth();
+      await pb.collection("users").update(userId, { plan: "free" });
+
+      // Find subscription and mark cancelled
+      try {
+        const subscriptions = await pb.collection("subscriptions").getList(1, 1, {
+          filter: `user = "${userId}" && status = "active"`,
+          sort: "-created",
+        });
+
+        if (subscriptions.items.length > 0) {
+          await pb.collection("subscriptions").update(subscriptions.items[0].id, {
+            status: "cancelled",
+            endDate: new Date().toISOString(),
+          });
+        }
+      } catch (subError) {
+        console.error("Failed to cancel active subscription reference:", subError);
+      }
+
+      res.json({ success: true, plan: "free" });
+    } catch (error: any) {
+      console.error("Cancellation Endpoint Error:", error.message);
+      res.status(500).json({ error: "Failed to cancel database plan details" });
+    }
+  });
+
+  // Webhooks
+  app.post("/api/payments/webhook", async (req, res) => {
+    const signature = req.headers["x-razorpay-signature"] as string;
+    const webhookSecret = process.env.RAZORPAY_WEBHOOK_SECRET;
+
+    if (!webhookSecret || !signature) {
+      return res.status(200).send("No secret or signature. Bypassed webhook logging.");
+    }
+
+    try {
+      const hmac = crypto.createHmac("sha256", webhookSecret);
+      hmac.update(JSON.stringify(req.body));
+      const expectedSignature = hmac.digest("hex");
+
+      if (expectedSignature !== signature) {
+        return res.status(400).send("Signature verification failed for webhook");
+      }
+
+      const event = req.body.event;
+      console.log(`Verified Webhook: ${event}`);
+
+      res.status(200).json({ received: true });
+    } catch (error: any) {
+      console.error("Webhook processing error:", error.message);
+      res.status(500).send("Webhook failed parsing");
     }
   });
 

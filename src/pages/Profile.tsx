@@ -11,14 +11,15 @@ interface ProfileProps {
 }
 
 export const Profile: React.FC<ProfileProps> = ({ onBack }) => {
-  const { user, signOut, updateProfile, deleteAccount, isPremium, downloadsToday, downloadsLimit } = useAuth();
-  const { addToast } = useApp();
+  const { user, signOut, updateProfile, deleteAccount, isPremium, downloadsToday, downloadsLimit, plan } = useAuth();
+  const { addToast, setActiveTab } = useApp();
   
   // Loading states
   const [isUpdatingName, setIsUpdatingName] = useState(false);
   const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
   const [isChangingPassword, setIsChangingPassword] = useState(false);
   const [isDeletingAccount, setIsDeletingAccount] = useState(false);
+  const [isCancelling, setIsCancelling] = useState(false);
   
   // Edit states
   const [isEditingName, setIsEditingName] = useState(false);
@@ -109,6 +110,36 @@ export const Profile: React.FC<ProfileProps> = ({ onBack }) => {
     }
   };
 
+  const handleCancelSubscription = async () => {
+    if (!window.confirm("Are you sure you want to cancel your subscription? This will instantly downgrade your account and limit your daily saves to 5.")) {
+      return;
+    }
+    
+    setIsCancelling(true);
+    try {
+      const res = await fetch('/api/payments/cancel', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId: user.id })
+      });
+      
+      if (!res.ok) {
+        throw new Error('Failed to cancel active subscription');
+      }
+      
+      addToast('Subscription cancelled successfully', 'success');
+      
+      // Force reload auth token to pull fresh profile context
+      setTimeout(() => {
+        window.location.reload();
+      }, 1500);
+    } catch (e: any) {
+      addToast(e.message || 'Error processing cancellation. Please contact support.', 'error');
+    } finally {
+      setIsCancelling(false);
+    }
+  };
+
   const getAvatarUrl = (user: any) => {
     if (user?.avatar) {
       return `${import.meta.env.VITE_POCKETBASE_URL}/api/files/users/${user.id}/${user.avatar}`;
@@ -196,17 +227,43 @@ export const Profile: React.FC<ProfileProps> = ({ onBack }) => {
               </div>
               <p className="text-[var(--text-secondary)] font-medium">{user.email}</p>
               
-              <div className="flex items-center justify-center md:justify-start gap-3 mt-4">
+              <div className="flex flex-wrap items-center justify-center md:justify-start gap-3 mt-4 animate-fade-in">
                 <div className={cn(
                   "px-4 py-1 rounded-full text-[10px] font-black uppercase tracking-widest border",
-                  isPremium ? "border-amber-500/50 text-amber-500 bg-amber-500/5" : "border-indigo-500/50 text-indigo-400 bg-indigo-500/5"
+                  plan === 'pro' || plan === 'premium'
+                    ? "border-amber-500/50 text-amber-500 bg-amber-500/5 shadow-[0_0_15px_rgba(245,158,11,0.1)]"
+                    : plan === 'basic'
+                    ? "border-pink-500/50 text-pink-400 bg-pink-500/5 shadow-[0_0_15px_rgba(236,72,153,0.1)]"
+                    : "border-indigo-500/50 text-indigo-400 bg-indigo-500/5"
                 )}>
-                  {isPremium ? 'Premium Plan' : 'Free Plan'}
+                  {plan === 'pro' || plan === 'premium' ? 'PRO Plan' : plan === 'basic' ? 'BASIC Plan' : 'Free Plan'}
                 </div>
-                {!isPremium && (
-                  <button className="text-[10px] font-black uppercase tracking-widest text-indigo-400 hover:text-indigo-300 underline underline-offset-4">
+                
+                {plan === 'free' || !plan ? (
+                  <button 
+                    onClick={() => { onBack(); setActiveTab('pricing'); }}
+                    className="text-[10px] font-black uppercase tracking-widest text-[#818cf8] hover:text-indigo-300 underline underline-offset-4"
+                  >
                     Upgrade
                   </button>
+                ) : (
+                  <div className="flex gap-2">
+                    {plan === 'basic' && (
+                      <button 
+                        onClick={() => { onBack(); setActiveTab('pricing'); }}
+                        className="text-[10px] font-black uppercase tracking-widest text-indigo-400 hover:text-indigo-300 underline underline-offset-4"
+                      >
+                        Upgrade to PRO
+                      </button>
+                    )}
+                    <button 
+                      onClick={handleCancelSubscription}
+                      disabled={isCancelling}
+                      className="text-[10px] font-black uppercase tracking-widest text-red-400 hover:text-red-300 underline underline-offset-4 disabled:opacity-50"
+                    >
+                      {isCancelling ? 'Processing...' : 'Cancel Paid Plan'}
+                    </button>
+                  </div>
                 )}
               </div>
             </div>

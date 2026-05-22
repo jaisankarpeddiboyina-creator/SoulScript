@@ -19,7 +19,8 @@ import {
   Check,
   Library,
   Eye,
-  EyeOff
+  EyeOff,
+  Sparkles
 } from 'lucide-react';
 import html2canvas from 'html2canvas';
 
@@ -291,9 +292,7 @@ const ShareModal: React.FC<ShareModalProps> = ({ quote, blob, thumbnail, onClose
       link.click();
       
       addToast('📋 Image saved! Opening Instagram...', 'success');
-      setTimeout(() => {
-        window.open('https://www.instagram.com/', '_blank', 'noopener,noreferrer');
-      }, 800);
+      window.open('https://www.instagram.com/', '_blank', 'noopener,noreferrer');
       onClose();
       return;
     }
@@ -321,9 +320,7 @@ const ShareModal: React.FC<ShareModalProps> = ({ quote, blob, thumbnail, onClose
     link.download = `SoulScript-${Date.now()}.png`;
     link.click();
 
-    setTimeout(() => {
-      window.open(platformUrls[option.platform] as string, '_blank', 'noopener,noreferrer');
-    }, 800);
+    window.open(platformUrls[option.platform] as string, '_blank', 'noopener,noreferrer');
 
     addToast('📥 Image saved! Attach it when sharing.', 'info');
     onClose();
@@ -437,7 +434,7 @@ export const QuoteCard = forwardRef<QuoteCardHandle, QuoteCardProps>(({
   font = 'Playfair Display'
 }, ref) => {
   const { addToast, setActiveTab, setGeneratePreloadedQuote, setPlaylistModalQuote } = useApp();
-  const { canDownload, incrementDownload, isGuest, setGatingType } = useAuth();
+  const { canDownload, incrementDownload, isGuest, setGatingType, plan } = useAuth();
   const cardRef = useRef<HTMLDivElement>(null);
   const [imageLoaded, setImageLoaded] = useState(false);
   const [downloading, setDownloading] = useState(false);
@@ -893,6 +890,14 @@ export const QuoteCard = forwardRef<QuoteCardHandle, QuoteCardProps>(({
               </span>
             )}
           </div>
+
+          {/* Subtle Watermark for FREE/GUEST users */}
+          {(plan === 'free' || !plan) && (
+            <div className="absolute bottom-4 right-6 flex items-center gap-1.5 opacity-40 bg-black/40 backdrop-blur-sm px-2.5 py-1 rounded-full border border-white/10 pointer-events-none">
+              <Sparkles size={10} className="text-pink-400" />
+              <span className="text-[9px] font-bold tracking-widest text-[#f3f4f6] uppercase font-serif">SoulScript</span>
+            </div>
+          )}
         </div>
       </div>
 
