@@ -1,9 +1,10 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Compass, Sparkles, Settings as SettingsIcon, Moon, Sun, Library, Send, LayoutGrid, BookMarked, User, LogOut, LogIn, Zap, Menu } from 'lucide-react';
+import { Compass, Sparkles, Settings as SettingsIcon, Moon, Sun, Library, Send, LayoutGrid, BookMarked, User, LogOut, LogIn, Zap, Menu, Coffee, Heart } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { useAuth } from '../context/AuthContext';
 import { cn } from '../lib/utils';
+import { formatPocketBaseUrl } from '../services/pocketbase';
 
 interface NavbarProps {
   onSignInClick: () => void;
@@ -33,7 +34,8 @@ export const Navbar: React.FC<NavbarProps> = ({ onSignInClick, onProfileClick })
 
   const getAvatarUrl = (user: any) => {
     if (user.avatar) {
-      return `${import.meta.env.VITE_POCKETBASE_URL}/api/files/users/${user.id}/${user.avatar}`;
+      const baseUrl = formatPocketBaseUrl(import.meta.env.VITE_POCKETBASE_URL);
+      return `${baseUrl}/api/files/users/${user.id}/${user.avatar}`;
     }
     return null;
   };
@@ -127,26 +129,7 @@ export const Navbar: React.FC<NavbarProps> = ({ onSignInClick, onProfileClick })
             )}
           </button>
 
-          <button
-            onClick={() => {
-              setActiveTab('delivery');
-            }}
-            className={cn(
-              "relative px-[10px] py-[8px] lg:px-4 lg:py-2 text-[13px] lg:text-sm font-medium transition-colors rounded-full whitespace-nowrap",
-              activeTab === 'delivery' ? "text-[var(--text-primary)] bg-white/5" : "text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-white/5"
-            )}
-          >
-            <div className="flex items-center gap-1 lg:gap-2">
-              <Send size={18} />
-              <span>Delivery</span>
-            </div>
-            {activeTab === 'delivery' && (
-              <motion.div
-                layoutId="nav-underline"
-                className="absolute -bottom-[2px] left-3 right-3 h-[2px] gradient-bg rounded-full"
-              />
-            )}
-          </button>
+
 
           <button
             onClick={() => {
@@ -158,8 +141,8 @@ export const Navbar: React.FC<NavbarProps> = ({ onSignInClick, onProfileClick })
             )}
           >
             <div className="flex items-center gap-1 lg:gap-2">
-              <Zap size={17} className="text-pink-400" />
-              <span>Pricing</span>
+              <Coffee size={17} className="text-amber-500 fill-amber-500/10" />
+              <span>Buy Coffee ☕</span>
             </div>
             {activeTab === 'pricing' && (
               <motion.div
@@ -213,8 +196,8 @@ export const Navbar: React.FC<NavbarProps> = ({ onSignInClick, onProfileClick })
                       onClick={() => { setShowDropdown(false); setActiveTab('pricing'); }}
                       className="w-full px-4 py-2 text-left text-sm text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-white/5 flex items-center gap-3 transition-colors"
                     >
-                      <Zap size={16} className="text-pink-400" />
-                      <span>Pricing & Plans</span>
+                      <Coffee size={16} className="text-amber-500" />
+                      <span>Buy Me a Coffee ☕</span>
                     </button>
                     <button 
                       onClick={() => { signOut(); setShowDropdown(false); addToast('Signed out successfully', 'success'); }}
@@ -247,7 +230,7 @@ export const BottomNavigation: React.FC = () => {
   const { isGuest, setGatingType } = useAuth();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
 
-  const isMenuOptionActive = activeTab === 'delivery' || activeTab === 'pricing';
+  const isMenuOptionActive = activeTab === 'pricing';
 
   return (
     <>
@@ -284,24 +267,7 @@ export const BottomNavigation: React.FC = () => {
               </div>
 
               <div className="flex flex-col gap-2 mt-1">
-                <button
-                  onClick={() => {
-                    setActiveTab('delivery');
-                    setIsMenuOpen(false);
-                  }}
-                  className={cn(
-                    "flex items-center gap-3.5 p-3 rounded-2xl w-full text-left transition-all border",
-                    activeTab === 'delivery'
-                      ? "bg-indigo-50 border-indigo-200 text-indigo-600 dark:bg-indigo-500/15 dark:border-indigo-500/30 dark:text-indigo-400"
-                      : "bg-transparent border-transparent text-zinc-700 hover:bg-zinc-100/70 dark:text-zinc-300 dark:hover:bg-white/5"
-                  )}
-                >
-                  <Send size={18} className={activeTab === 'delivery' ? "text-indigo-600 dark:text-indigo-400" : "text-zinc-500 dark:text-zinc-400"} />
-                  <div className="flex flex-col">
-                    <span className="text-xs font-extrabold uppercase tracking-wide">Delivery Schedules</span>
-                    <span className="text-[10px] opacity-80 mt-0.5 leading-relaxed">Configure automatic daily quote dispatch</span>
-                  </div>
-                </button>
+
 
                 <button
                   onClick={() => {
@@ -311,14 +277,14 @@ export const BottomNavigation: React.FC = () => {
                   className={cn(
                     "flex items-center gap-3.5 p-3 rounded-2xl w-full text-left transition-all border",
                     activeTab === 'pricing'
-                      ? "bg-pink-50 border-pink-200 text-pink-600 dark:bg-pink-500/15 dark:border-pink-500/30 dark:text-pink-400"
+                      ? "bg-amber-50 border-amber-200 text-amber-600 dark:bg-amber-500/15 dark:border-amber-500/30 dark:text-amber-400"
                       : "bg-transparent border-transparent text-zinc-700 hover:bg-zinc-100/70 dark:text-zinc-300 dark:hover:bg-white/5"
                   )}
                 >
-                  <Zap size={18} className="text-pink-600 dark:text-pink-400" />
+                  <Coffee size={18} className="text-amber-600 dark:text-amber-450" />
                   <div className="flex flex-col">
-                    <span className="text-xs font-extrabold uppercase tracking-wide">Upgrade & Pricing</span>
-                    <span className="text-[10px] opacity-80 mt-0.5 leading-relaxed">Unlock HD downloads, clean cards & pro access</span>
+                    <span className="text-xs font-extrabold uppercase tracking-wide">Buy Me a Coffee</span>
+                    <span className="text-[10px] opacity-80 mt-0.5 leading-relaxed">Support servers & keep SoulScript free</span>
                   </div>
                 </button>
               </div>

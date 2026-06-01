@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { ArrowLeft, Camera, Edit2, Check, X, Shield, Trash2, LogOut, Loader2, Sparkles, AlertCircle } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useApp } from '../context/AppContext';
-import { pocketbaseService } from '../services/pocketbase';
+import { pocketbaseService, formatPocketBaseUrl } from '../services/pocketbase';
 import { cn } from '../lib/utils';
 
 interface ProfileProps {
@@ -117,19 +117,11 @@ export const Profile: React.FC<ProfileProps> = ({ onBack }) => {
     
     setIsCancelling(true);
     try {
-      const res = await fetch('/api/payments/cancel', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userId: user.id })
-      });
-      
-      if (!res.ok) {
-        throw new Error('Failed to cancel active subscription');
-      }
+      await pocketbaseService.updateProfile(user.id, { plan: 'free' });
       
       addToast('Subscription cancelled successfully', 'success');
       
-      // Force reload auth token to pull fresh profile context
+      // Force reload page to pull fresh profile context
       setTimeout(() => {
         window.location.reload();
       }, 1500);
@@ -142,7 +134,8 @@ export const Profile: React.FC<ProfileProps> = ({ onBack }) => {
 
   const getAvatarUrl = (user: any) => {
     if (user?.avatar) {
-      return `${import.meta.env.VITE_POCKETBASE_URL}/api/files/users/${user.id}/${user.avatar}`;
+      const baseUrl = formatPocketBaseUrl(import.meta.env.VITE_POCKETBASE_URL);
+      return `${baseUrl}/api/files/users/${user.id}/${user.avatar}`;
     }
     return null;
   };
@@ -228,43 +221,16 @@ export const Profile: React.FC<ProfileProps> = ({ onBack }) => {
               <p className="text-[var(--text-secondary)] font-medium">{user.email}</p>
               
               <div className="flex flex-wrap items-center justify-center md:justify-start gap-3 mt-4 animate-fade-in">
-                <div className={cn(
-                  "px-4 py-1 rounded-full text-[10px] font-black uppercase tracking-widest border",
-                  plan === 'pro' || plan === 'premium'
-                    ? "border-amber-500/50 text-amber-500 bg-amber-500/5 shadow-[0_0_15px_rgba(245,158,11,0.1)]"
-                    : plan === 'basic'
-                    ? "border-pink-500/50 text-pink-400 bg-pink-500/5 shadow-[0_0_15px_rgba(236,72,153,0.1)]"
-                    : "border-indigo-500/50 text-indigo-400 bg-indigo-500/5"
-                )}>
-                  {plan === 'pro' || plan === 'premium' ? 'PRO Plan' : plan === 'basic' ? 'BASIC Plan' : 'Free Plan'}
+                <div className="px-4 py-1 rounded-full text-[10px] font-black uppercase tracking-widest border border-emerald-500/50 text-emerald-400 bg-emerald-500/5 shadow-[0_0_15px_rgba(16,185,129,0.1)]">
+                  Community Elite (Free)
                 </div>
                 
-                {plan === 'free' || !plan ? (
-                  <button 
-                    onClick={() => { onBack(); setActiveTab('pricing'); }}
-                    className="text-[10px] font-black uppercase tracking-widest text-[#818cf8] hover:text-indigo-300 underline underline-offset-4"
-                  >
-                    Upgrade
-                  </button>
-                ) : (
-                  <div className="flex gap-2">
-                    {plan === 'basic' && (
-                      <button 
-                        onClick={() => { onBack(); setActiveTab('pricing'); }}
-                        className="text-[10px] font-black uppercase tracking-widest text-indigo-400 hover:text-indigo-300 underline underline-offset-4"
-                      >
-                        Upgrade to PRO
-                      </button>
-                    )}
-                    <button 
-                      onClick={handleCancelSubscription}
-                      disabled={isCancelling}
-                      className="text-[10px] font-black uppercase tracking-widest text-red-400 hover:text-red-300 underline underline-offset-4 disabled:opacity-50"
-                    >
-                      {isCancelling ? 'Processing...' : 'Cancel Paid Plan'}
-                    </button>
-                  </div>
-                )}
+                <button 
+                  onClick={() => { onBack(); setActiveTab('pricing'); }}
+                  className="text-[10px] font-black uppercase tracking-widest text-[#818cf8] hover:text-indigo-300 underline underline-offset-4"
+                >
+                  Buy Coffee☕
+                </button>
               </div>
             </div>
           </div>
@@ -275,23 +241,12 @@ export const Profile: React.FC<ProfileProps> = ({ onBack }) => {
               <div className="space-y-3">
                 <div className="flex items-end justify-between">
                   <span className="text-2xl font-bold text-[var(--text-primary)]">
-                    {isPremium ? 'Unlimited' : `${downloadsToday} / ${downloadsLimit}`}
+                    Unlimited
                   </span>
-                  {!isPremium && (
-                    <span className="text-[10px] font-black uppercase text-indigo-400">
-                      {Math.max(0, downloadsLimit - downloadsToday)} remaining
-                    </span>
-                  )}
+                  <span className="text-[10px] font-black uppercase text-indigo-400">
+                    Sponsor Supported
+                  </span>
                 </div>
-                {!isPremium && (
-                  <div className="w-full h-1.5 bg-white/5 rounded-full overflow-hidden">
-                    <motion.div 
-                      initial={{ width: 0 }}
-                      animate={{ width: `${Math.min((downloadsToday / downloadsLimit) * 100, 100)}%` }}
-                      className="h-full gradient-bg" 
-                    />
-                  </div>
-                )}
               </div>
             </div>
             <div className="glass-morphism p-4 rounded-2xl border border-[var(--border-color)] flex items-center justify-between">

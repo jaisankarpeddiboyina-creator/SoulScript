@@ -15,8 +15,8 @@ interface ExploreFilters {
 }
 
 interface AppContextType {
-  activeTab: 'explore' | 'generate' | 'playlists' | 'delivery' | 'collections' | 'pricing';
-  setActiveTab: (tab: 'explore' | 'generate' | 'playlists' | 'delivery' | 'collections' | 'pricing') => void;
+  activeTab: 'explore' | 'generate' | 'playlists' | 'collections' | 'pricing';
+  setActiveTab: (tab: 'explore' | 'generate' | 'playlists' | 'collections' | 'pricing') => void;
   theme: 'dark' | 'light';
   toggleTheme: () => void;
   
@@ -55,7 +55,7 @@ interface AppContextType {
 const AppContext = createContext<AppContextType | undefined>(undefined);
 
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [activeTab, setActiveTab] = useState<'explore' | 'generate' | 'playlists' | 'delivery' | 'collections' | 'pricing'>('explore');
+  const [activeTab, setActiveTab] = useState<'explore' | 'generate' | 'playlists' | 'collections' | 'pricing'>('explore');
   const [theme, setTheme] = useState<'dark' | 'light'>(() => {
     return (localStorage.getItem('soulscript-theme') as 'dark' | 'light') || 'dark';
   });

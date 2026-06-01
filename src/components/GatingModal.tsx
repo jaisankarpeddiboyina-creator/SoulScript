@@ -60,7 +60,7 @@ export const GatingModal: React.FC<GatingModalProps> = ({ onSignInOpen }) => {
       case 'auth_required':
         return {
           title: "Sign In Required",
-          message: "Please sign in to create playlists, save quotes, and set up delivery alerts.",
+          message: "Please sign in to create playlists, save quotes, and customize quote cards.",
           icon: <LogIn className="text-white" />,
           primaryAction: () => { onSignInOpen(); setGatingType(null); },
           primaryLabel: "Sign In",

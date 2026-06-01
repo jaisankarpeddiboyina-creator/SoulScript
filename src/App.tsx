@@ -12,7 +12,6 @@ import { Explore } from './pages/Explore';
 import { Collections } from './pages/Collections';
 import { Generate } from './pages/Generate';
 import { Playlists } from './pages/Playlists';
-import { Delivery } from './pages/Delivery';
 import { Profile } from './pages/Profile';
 import { Pricing } from './pages/Pricing';
 import { PlaylistModal } from './components/PlaylistModal';
@@ -89,17 +88,7 @@ function AppContent() {
                   <Playlists />
                 </motion.div>
               )}
-              {activeTab === 'delivery' && (
-                <motion.div
-                  key="delivery"
-                  initial={{ opacity: 0, scale: 0.95 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  exit={{ opacity: 0, scale: 0.95 }}
-                  transition={{ duration: 0.3 }}
-                >
-                  <Delivery />
-                </motion.div>
-              )}
+
               {activeTab === 'pricing' && (
                 <motion.div
                   key="pricing"

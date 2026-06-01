@@ -60,7 +60,20 @@ Fields:
 
 import PocketBase from 'pocketbase';
 
-const pb = new PocketBase(import.meta.env.VITE_POCKETBASE_URL || 'http://127.0.0.1:8090');
+export const formatPocketBaseUrl = (url?: string): string => {
+  if (!url) return 'http://127.0.0.1:8090';
+  let formatted = url.trim();
+  if (!/^https?:\/\//i.test(formatted)) {
+    if (formatted.startsWith('localhost') || formatted.startsWith('127.0.0.1') || formatted.startsWith('0.0.0.0')) {
+      formatted = 'http://' + formatted;
+    } else {
+      formatted = 'https://' + formatted;
+    }
+  }
+  return formatted;
+};
+
+export const pb = new PocketBase(formatPocketBaseUrl(import.meta.env.VITE_POCKETBASE_URL));
 
 // Auth Methods
 export const signUp = async (data: any) => {

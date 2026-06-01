@@ -29,6 +29,7 @@ export const Playlists: React.FC = () => {
   const [newPlaylistName, setNewPlaylistName] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
   const [isZipping, setIsZipping] = useState(false);
+  const [activeMenuQuoteId, setActiveMenuQuoteId] = useState<string | null>(null);
 
   useEffect(() => {
     const fetchPlaylists = async () => {
@@ -170,6 +171,7 @@ export const Playlists: React.FC = () => {
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, scale: 0.9 }}
                 transition={{ delay: idx * 0.05 }}
+                style={{ zIndex: activeMenuQuoteId === quote.id ? 150 : 1 }}
               >
                 <QuoteCard
                   ref={el => cardRefs.current[quote.id] = el}
@@ -178,11 +180,10 @@ export const Playlists: React.FC = () => {
                     content: quote.quoteText,
                     author: quote.author,
                     tags: Array.isArray(quote.category) ? quote.category as any : [quote.category] as any,
-                    length: 'medium', // fallback
+                    length: 'medium', 
                     likes: 0
                   }}
-                  image={quote.imageUrl}
-                  category={Array.isArray(quote.category) ? quote.category[0] as any : quote.category as any}
+                  onMenuOpenChange={(isOpen) => setActiveMenuQuoteId(isOpen ? quote.id : null)}
                   className="h-auto aspect-[3/4]"
                   // Overriding menu options for playlist
                   customMenuOptions={[
@@ -257,10 +258,11 @@ export const Playlists: React.FC = () => {
                   {playlist.quotes.slice(0, 3).map((q, i) => (
                     <div 
                       key={q.id} 
-                      className="w-12 h-12 rounded-full border-2 border-[var(--bg-primary)] overflow-hidden shadow-xl"
+                      className="w-12 h-12 rounded-full border-2 border-[var(--bg-primary)] bg-gradient-to-b from-[#160824] to-[#340B2D] flex items-center justify-center shadow-xl text-[12px] font-serif text-[#FFD700] italic select-none"
                       style={{ zIndex: 3 - i }}
+                      title={q.quoteText}
                     >
-                      <img src={q.imageUrl} alt="" className="w-full h-full object-cover" />
+                      ❝
                     </div>
                   ))}
                   {playlist.quotes.length > 3 && (

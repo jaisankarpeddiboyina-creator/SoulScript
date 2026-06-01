@@ -4,7 +4,6 @@ import {
   RefreshCw, 
   PenLine, 
   Sparkles, 
-  Image as ImageIcon, 
   Download, 
   Share2, 
   Check,
@@ -13,16 +12,14 @@ import {
   Loader2,
   Copy,
   Type,
-  Lock,
-  ChevronRight
+  Lock
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { useAuth } from '../context/AuthContext';
 import { QuoteCard, QuoteCardHandle } from '../components/QuoteCard';
 import { QuoteCategory, Quote } from '../types';
-import { CATEGORIES, CATEGORY_MAP, FALLBACK_QUOTES, PHOTO_KEYWORDS } from '../constants';
+import { CATEGORIES, FALLBACK_QUOTES } from '../constants';
 import { cn, copyToClipboard } from '../lib/utils';
-
 
 const FONTS = [
   { id: 'playfair', name: 'Playfair Display', family: '"Playfair Display", serif', premium: false },
@@ -50,10 +47,9 @@ export const Generate: React.FC = () => {
     content: "",
     author: ""
   });
-  const [imageUrl, setImageUrl] = useState('');
+  
   const [selectedFont, setSelectedFont] = useState(FONTS[0]);
   const [loadingQuote, setLoadingQuote] = useState(false);
-  const [loadingImage, setLoadingImage] = useState(false);
   const [copying, setCopying] = useState(false);
   const isPreloadingRef = useRef(false);
   const quoteCardRef = useRef<QuoteCardHandle>(null);
@@ -61,10 +57,6 @@ export const Generate: React.FC = () => {
   useEffect(() => {
     if (generatePreloadedQuote) {
       isPreloadingRef.current = true;
-      if (generatePreloadedQuote.imageUrl) {
-        setImageUrl(generatePreloadedQuote.imageUrl);
-      }
-      
       setCategory(generatePreloadedQuote.category);
       setSource('api');
       setApiQuote({
@@ -76,21 +68,17 @@ export const Generate: React.FC = () => {
       setGeneratePreloadedQuote(null);
       addToast('Loaded your quote for editing!', 'success');
       
-      // Delay resetting the preloading flag to let the category effect run once and be blocked
       setTimeout(() => {
         isPreloadingRef.current = false;
       }, 500);
     }
   }, [generatePreloadedQuote, setGeneratePreloadedQuote, addToast]);
 
-  const imageIndexRef = React.useRef<Record<string, number>>({});
   const usedQuoteIdsRef = React.useRef<Record<string, Set<string>>>({});
-  const hasMountedRef = useRef(false);
 
   const [cardVisibility, setCardVisibility] = useState({
     showQuote: true,
     showAuthor: true,
-    showCategory: true,
     showQuoteMarks: true
   });
 
@@ -104,57 +92,27 @@ export const Generate: React.FC = () => {
     if (isPreloadingRef.current) return;
     setLoadingQuote(true);
     
-    // Track used quote IDs to never repeat
     if (!usedQuoteIdsRef.current[targetCategory]) {
       usedQuoteIdsRef.current[targetCategory] = new Set();
     }
-    const usedIds = usedQuoteIdsRef.current[targetCategory];
 
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 8000);
 
     try {
-      // Primary: Quotable API - Fetch a small batch to filter out used ones
-      const response = await fetch(`/api/quotes/random?tags=${targetCategory}&limit=5`, { signal: controller.signal });
+      const response = await fetch('https://dummyjson.com/quotes/random', { signal: controller.signal });
       clearTimeout(timeoutId);
       
       if (!response.ok) throw new Error('API Error');
       const data = await response.json();
       
-      // Data is an array for /quotes/random with limit
-      const quotesArray = Array.isArray(data) ? data : [data];
-      
-      // Find one not used yet
-      const unused = quotesArray.find(q => !usedIds.has(q._id));
-      const selected = unused || quotesArray[0];
-
-      if (selected) {
-        usedIds.add(selected._id);
-        setApiQuote({
-          content: selected.content,
-          author: selected.author,
-          _id: selected._id,
-          tags: selected.tags
-        });
-      }
+      setApiQuote({
+        content: data.quote,
+        author: data.author,
+        _id: String(data.id),
+        tags: [targetCategory]
+      });
     } catch (error) {
-      // Secondary: Try DummyJSON if Quotable is down
-      try {
-        const fallbackRes = await fetch('/api/fallback-quotes');
-        if (fallbackRes.ok) {
-          const data = await fallbackRes.json();
-          setApiQuote({
-            content: data.quote,
-            author: data.author
-          });
-          addToast('Connected to secondary database', 'info');
-          return;
-        }
-      } catch (innerError) {
-        // Silent
-      }
-
-      // Final Fallback: Offline constants
       const fallbacks = FALLBACK_QUOTES[targetCategory] || FALLBACK_QUOTES.motivational;
       const randomFallback = fallbacks[Math.floor(Math.random() * fallbacks.length)];
       setApiQuote(randomFallback);
@@ -164,52 +122,15 @@ export const Generate: React.FC = () => {
     }
   };
 
-  const fetchNewImage = async (targetCategory: QuoteCategory = category) => {
-    if (isPreloadingRef.current) return;
-    setLoadingImage(true);
-    
-    // Rotating pool logic across all categories using a global image index
-    const currentIndex = imageIndexRef.current['global'] || 0;
-    const keyword = PHOTO_KEYWORDS[currentIndex % PHOTO_KEYWORDS.length];
-    imageIndexRef.current['global'] = currentIndex + 1;
-
-    const isMobile = window.innerWidth < 768;
-    const seed = Date.now() + Math.floor(Math.random() * 99999);
-    
-    const url = `https://loremflickr.com/${isMobile ? "800/1000" : "1920/1080"}/${encodeURIComponent(keyword)}?lock=${seed}&cors=1`;
-    
-    const img = new Image();
-    img.crossOrigin = "anonymous";
-    img.src = url;
-    img.onload = () => {
-      setImageUrl(url);
-      setLoadingImage(false);
-    };
-    img.onerror = () => {
-      setImageUrl(`https://picsum.photos/seed/${seed}/${isMobile ? "800/1000" : "1920/1080"}`);
-      setLoadingImage(false);
-    };
-  };
-
   useEffect(() => {
-    // When category changes — reset indexes and fetch fresh
     if (isPreloadingRef.current) return;
-    
-    imageIndexRef.current[category] = 0;
     
     if (source === 'api') {
       fetchRandomQuote(category);
     } else {
       setUserQuote(prev => ({ ...prev, content: "" }));
     }
-    fetchNewImage(category);
   }, [category]);
-
-  useEffect(() => {
-    if (source === 'custom') {
-      // We don't fetch new quote but we keep image sync if needed
-    }
-  }, [source]);
 
   const handleShare = async () => {
     if (quoteCardRef.current) {
@@ -228,7 +149,7 @@ export const Generate: React.FC = () => {
     const success = await copyToClipboard(text);
     if (success) {
       setCopying(true);
-      addToast('✅ Copied to clipboard!', 'success');
+      addToast('✅ Copied text to clipboard!', 'success');
       setTimeout(() => setCopying(false), 2000);
     } else {
       addToast('❌ Copy failed.', 'error');
@@ -236,27 +157,12 @@ export const Generate: React.FC = () => {
   };
 
   const handleRegenerate = async () => {
-    const promises = [fetchNewImage(category)];
-    if (source === 'api') promises.push(fetchRandomQuote(category));
-    await Promise.all(promises);
+    if (source === 'api') {
+      await fetchRandomQuote(category);
+    } else {
+      addToast('Enter your custom quote text directly below!', 'info');
+    }
   };
-
-  const isLoading = loadingQuote || loadingImage;
-
-  const [isKeyboardVisible, setIsKeyboardVisible] = useState(false);
-
-  useEffect(() => {
-    const handleResize = () => {
-      if (window.innerWidth < 768) {
-        // If height decreases significantly, assume keyboard is up
-        setIsKeyboardVisible(window.innerHeight < 600);
-      } else {
-        setIsKeyboardVisible(false);
-      }
-    };
-    window.addEventListener('resize', handleResize);
-    return () => window.removeEventListener('resize', handleResize);
-  }, []);
 
   return (
     <>
@@ -282,28 +188,32 @@ export const Generate: React.FC = () => {
         </div>
 
         <div className="h-auto w-full max-w-lg mx-auto flex flex-col gap-5 pt-4 lg:pt-0">
-           <div className="relative aspect-square w-full group overflow-hidden rounded-2xl shadow-2xl">
+           <div className="relative aspect-square w-full group">
               <div className="h-full w-full">
                 <QuoteCard 
                   ref={quoteCardRef}
                   quote={displayQuote} 
-                  image={imageUrl} 
                   category={category}
                   variant="preview"
-                  visibility={cardVisibility}
+                  visibility={{
+                    showQuote: cardVisibility.showQuote,
+                    showAuthor: cardVisibility.showAuthor,
+                    showCategory: false,
+                    showQuoteMarks: cardVisibility.showQuoteMarks
+                  }}
                   font={selectedFont.family}
                   className="h-full w-full ring-1 ring-white/10"
                 />
               </div>
               
               <AnimatePresence>
-                {isLoading && (
+                {loadingQuote && (
                   <motion.div 
                     initial={{ opacity: 0 }}
                     animate={{ opacity: 1 }}
                     exit={{ opacity: 0 }}
                     transition={{ duration: 0.2 }}
-                    className="absolute inset-0 bg-black/40 backdrop-blur-md flex flex-col items-center justify-center gap-3 z-30"
+                    className="absolute inset-0 bg-black/40 backdrop-blur-md flex flex-col items-center justify-center gap-3 z-30 rounded-none"
                   >
                     <div className="p-3 bg-indigo-600/10 rounded-full border border-indigo-500/20">
                       <Loader2 className="animate-spin text-indigo-400" size={24} />
@@ -316,24 +226,20 @@ export const Generate: React.FC = () => {
               </AnimatePresence>
            </div>
            
-           {/* Quick Action Buttons - Moved OUTSIDE and BELOW the card */}
+           {/* Quick Action Buttons */}
            <div className="flex gap-2 w-full animate-in fade-in slide-in-from-bottom-2 duration-500">
-             <button 
-               onClick={() => fetchNewImage()}
-               disabled={loadingImage}
-               className="flex-1 flex items-center justify-center gap-1.5 py-3 rounded-xl bg-[var(--input-bg)] border border-[var(--border-color)] text-[var(--text-primary)] text-xs font-black uppercase tracking-wider hover:border-indigo-500/50 transition-all active:scale-95 disabled:opacity-50 min-w-0 px-2 cursor-pointer"
-             >
-               {loadingImage ? <Loader2 size={14} className="animate-spin shrink-0" /> : <span className="truncate">🖼️ Change Image</span>}
-             </button>
-
-             {source === 'api' && (
-               <button 
-                 onClick={() => fetchRandomQuote()}
-                 disabled={loadingQuote}
-                 className="flex-1 flex items-center justify-center gap-1.5 py-3 rounded-xl bg-[var(--input-bg)] border border-[var(--border-color)] text-[var(--text-primary)] text-xs font-black uppercase tracking-wider hover:border-indigo-500/50 transition-all active:scale-95 disabled:opacity-50 min-w-0 px-2 cursor-pointer"
-               >
-                 {loadingQuote ? <Loader2 size={14} className="animate-spin shrink-0" /> : <span className="truncate">🔄 Change Quote</span>}
-               </button>
+             {source === 'api' ? (
+                <button 
+                  onClick={() => fetchRandomQuote()}
+                  disabled={loadingQuote}
+                  className="w-full flex items-center justify-center gap-1.5 py-3 rounded-xl bg-[var(--input-bg)] border border-[var(--border-color)] text-[var(--text-primary)] text-xs font-black uppercase tracking-wider hover:border-indigo-500/50 transition-all active:scale-95 disabled:opacity-50 px-2 cursor-pointer"
+                >
+                  {loadingQuote ? <Loader2 size={14} className="animate-spin shrink-0" /> : <span>🔄 Roll New Quote</span>}
+                </button>
+             ) : (
+                <div className="w-full text-center py-2 text-[10px] font-bold text-gray-500 uppercase tracking-widest">
+                  ✍️ Editing Custom Quote Card
+                </div>
              )}
            </div>
 
@@ -350,8 +256,7 @@ export const Generate: React.FC = () => {
                {[
                  { id: 'showQuote', label: 'Show Quote Text' },
                  { id: 'showAuthor', label: 'Show Author Name' },
-                 { id: 'showCategory', label: 'Show Category Tag' },
-                 { id: 'showQuoteMarks', label: 'Show Quote Marks ❝❞' },
+                 { id: 'showQuoteMarks', label: 'Show Quote Marks ❝' },
                ].map((item) => (
                  <div 
                    key={item.id}
@@ -382,7 +287,7 @@ export const Generate: React.FC = () => {
               <div className="pt-4 border-t border-[var(--border-color)] space-y-4">
                 <div className="flex items-center gap-2">
                   <Type size={14} className="text-indigo-400" />
-                  <span className="text-[10px] font-black uppercase tracking-[0.2em] text-[var(--text-secondary)]">Font</span>
+                  <span className="text-[10px] font-black uppercase tracking-[0.2em] text-[var(--text-secondary)]">Serif Variant</span>
                 </div>
                 
                 <div className="flex gap-2 overflow-x-auto pb-4 custom-scrollbar -mx-2 px-2 no-scrollbar">
@@ -500,7 +405,7 @@ export const Generate: React.FC = () => {
                 </div>
 
                 <div className="space-y-4">
-                  <label className="text-xs font-black text-[var(--text-secondary)] uppercase tracking-[0.2em]">Your name or leave blank</label>
+                  <label className="text-xs font-black text-[var(--text-secondary)] uppercase tracking-[0.2em]">Author Name</label>
                   <input
                     type="text"
                     value={userQuote.author}
@@ -542,20 +447,22 @@ export const Generate: React.FC = () => {
         </section>
 
         <div className="flex flex-col gap-4 pt-4 pb-12">
-          <button
-            onClick={handleRegenerate}
-            disabled={isLoading}
-            className="w-full py-5 gradient-bg rounded-2xl font-black text-lg uppercase tracking-[0.2em] shadow-2xl shadow-indigo-500/30 flex items-center justify-center gap-4 active:scale-[0.98] transition-all disabled:opacity-50 disabled:grayscale text-white"
-          >
-            {isLoading ? (
-              <Loader2 size={24} className="animate-spin" />
-            ) : (
-              <>
-                <RefreshCw size={24} />
-                Regenerate
-              </>
-            )}
-          </button>
+          {source === 'api' && (
+            <button
+              onClick={handleRegenerate}
+              disabled={loadingQuote}
+              className="w-full py-5 gradient-bg rounded-2xl font-black text-lg uppercase tracking-[0.2em] shadow-2xl shadow-indigo-500/30 flex items-center justify-center gap-4 active:scale-[0.98] transition-all disabled:opacity-50 disabled:grayscale text-white"
+            >
+              {loadingQuote ? (
+                <Loader2 size={24} className="animate-spin" />
+              ) : (
+                <>
+                  <RefreshCw size={24} />
+                  Regenerate
+                </>
+              )}
+            </button>
+          )}
 
           <div className="flex gap-4">
              <button 

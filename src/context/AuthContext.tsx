@@ -47,13 +47,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   });
 
   const isLoggedIn = !!user;
-  const isPremium = user?.plan === 'premium' || user?.plan === 'pro';
+  const isPremium = true; // All limits and premium features are 100% free for everyone!
   const isGuest = !user;
-  const plan = user?.plan || 'free';
+  const plan: string = 'community';
   
   const downloadsToday = isGuest ? guestDownloads.count : (user?.downloadsToday || 0);
-  const downloadsLimit = isGuest ? 3 : (plan === 'basic' ? 100 : (isPremium ? Infinity : 5));
-  const isAtLimit = downloadsToday >= downloadsLimit;
+  const downloadsLimit = Infinity; // Unlimited downloads
+  const isAtLimit = false;
 
   useEffect(() => {
     // Check initial auth state

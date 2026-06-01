@@ -6,18 +6,14 @@ import {
   ChevronRight, 
   ArrowLeft, 
   Download, 
-  Share2, 
-  MoreVertical,
   PlusCircle,
   Loader2,
-  Filter as FilterIcon,
   X,
-  Lock
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { useAuth } from '../context/AuthContext';
 import { cn } from '../lib/utils';
-import { QuoteCard } from '../components/QuoteCard';
+import { QuoteCard, drawQuoteCardCanvas } from '../components/QuoteCard';
 import { 
   getQuotesByCategory, 
   getQuotesByAuthor, 
@@ -26,102 +22,103 @@ import {
   checkQuoteExists,
   isPocketBaseHealthy
 } from '../services/pocketbase';
-import { PHOTO_KEYWORDS } from '../constants';
+import { PHOTO_KEYWORDS, CATEGORIES } from '../constants';
 import axios from 'axios';
 import JSZip from 'jszip';
 
-const CATEGORIES = [
-  { name: 'Motivational', gradient: 'from-purple-600 to-indigo-600' },
-  { name: 'Wisdom', gradient: 'from-indigo-600 to-blue-600' },
-  { name: 'Love', gradient: 'from-rose-600 to-pink-600' },
-  { name: 'Success', gradient: 'from-green-600 to-emerald-600' },
-  { name: 'Life', gradient: 'from-orange-600 to-amber-600' },
-  { name: 'Stoicism', gradient: 'from-gray-600 to-slate-600' },
-  { name: 'Religion', gradient: 'from-teal-600 to-cyan-600' },
-  { name: 'Humor', gradient: 'from-yellow-600 to-orange-600' },
-];
-
 const ALPHABET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('');
+
+const getCategoryGradient = (id: string) => {
+  const gradients: Record<string, string> = {
+    all: 'from-purple-900 to-indigo-900',
+    motivational: 'from-[#1e1b4b] to-[#311042]',
+    love: 'from-[#4c1d37] to-[#1e1b4b]',
+    wisdom: 'from-[#115e59] to-[#1e1b4b]',
+    humor: 'from-[#854d0e] to-[#311042]',
+    life: 'from-[#1e3a8a] to-[#1e1b4b]',
+    inspiration: 'from-[#701a75] to-[#311042]',
+    philosophy: 'from-[#3c0764] to-[#160824]',
+    friendship: 'from-[#311042] to-[#4c1d37]',
+  };
+  return gradients[id] || 'from-[#160824] to-[#340B2D]';
+};
 
 export const Collections: React.FC = () => {
   const { addToast } = useApp();
-  const { isGuest, isLoggedIn, setGatingType } = useAuth();
+  const { canDownload } = useAuth();
+  const [authors, setAuthors] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
-  const [syncProgress, setSyncProgress] = useState({ current: 0, total: 0 });
+  const [syncProgress, setSyncProgress] = useState({ current: 0, total: 100 });
+  const [error, setError] = useState(false);
   const [isFallback, setIsFallback] = useState(false);
   
-  const [authors, setAuthors] = useState<any[]>([]);
-  const [error, setError] = useState(false);
+  // Filtering states
   const [searchQuery, setSearchQuery] = useState('');
   const [activeLetter, setActiveLetter] = useState<string | null>(null);
   
-  const [selectedCollection, setSelectedCollection] = useState<{ type: 'category' | 'author', name: string, slug?: string } | null>(null);
+  // Detail selection states
+  const [selectedCollection, setSelectedCollection] = useState<{
+    type: 'category' | 'author';
+    name: string;
+    slug?: string;
+  } | null>(null);
+  
   const [collectionQuotes, setCollectionQuotes] = useState<any[]>([]);
   const [collectionLoading, setCollectionLoading] = useState(false);
-
-  // Select mode for collection view
-  const [selectMode, setSelectMode] = useState(false);
   const [selectedQuoteIds, setSelectedQuoteIds] = useState<string[]>([]);
-
-  useEffect(() => {
-    loadData();
-  }, [isLoggedIn]);
+  const [selectMode, setSelectMode] = useState(false);
+  const [activeMenuQuoteId, setActiveMenuQuoteId] = useState<string | null>(null);
 
   const loadData = async () => {
     setLoading(true);
     setError(false);
     try {
-      if (isGuest) {
+      const isHealthy = await isPocketBaseHealthy();
+      if (!isHealthy) {
         setIsFallback(true);
-        await loadFallbackData();
-        return;
-      }
-      
-      const healthy = await isPocketBaseHealthy();
-      if (!healthy) {
-        setIsFallback(true);
-        await loadFallbackData();
-        return;
-      }
-      
-      setIsFallback(false);
-      const authorList = await getAllAuthors();
-      if (authorList.length === 0) {
-        await syncQuotes();
+        await loadFallbacks();
       } else {
+        setIsFallback(false);
+        const authorList = await getAllAuthors();
         setAuthors(authorList);
+        if (authorList.length === 0) {
+          // If fresh databases are empty, seed authors
+          setSyncing(true);
+          await syncQuotes();
+        }
       }
     } catch (err) {
       console.error(err);
       setIsFallback(true);
-      await loadFallbackData();
+      await loadFallbacks();
     } finally {
       setLoading(false);
     }
   };
 
-  const loadFallbackData = async () => {
+  useEffect(() => {
+    loadData();
+  }, []);
+
+  const loadFallbacks = async () => {
     try {
-      // Fetch a bunch of random quotes to extract authors via proxy
-      const response = await axios.get('/api/quotes/random?limit=50');
-      const quotes = response.data;
+      const res = await axios.get('https://dummyjson.com/quotes?limit=100');
+      const quotes = res.data.quotes.map((q: any) => ({
+        _id: String(q.id),
+        content: q.quote,
+        author: q.author,
+        authorSlug: q.author.toLowerCase().replace(/[^a-z0-9]+/g, '-'),
+        tags: ['Life']
+      }));
       
       const authorsMap: Record<string, any> = {};
-      // Initialize with existing authors
-      authors.forEach(a => {
-        authorsMap[a.slug] = { ...a };
-      });
-
       quotes.forEach((q: any) => {
         if (!authorsMap[q.authorSlug]) {
           authorsMap[q.authorSlug] = {
             name: q.author,
             slug: q.authorSlug,
-            count: 1,
-            // Use author name as keyword and slug as cache breaker for uniqueness
-            // Use safe photo keywords instead of author name to avoid human faces
-            firstImage: `https://loremflickr.com/800/445/${PHOTO_KEYWORDS[Math.floor(Math.random() * PHOTO_KEYWORDS.length)]}?random=${q.authorSlug}`
+            count: 1
           };
         } else {
           authorsMap[q.authorSlug].count++;
@@ -135,47 +132,31 @@ export const Collections: React.FC = () => {
   };
 
   const syncQuotes = async () => {
-    if (isGuest) {
-      setGatingType('auth_required');
-      return;
-    }
-
-    if (isFallback) {
-      setSyncing(true);
-      await loadFallbackData();
-      setSyncing(false);
-      return;
-    }
-    
+    if (syncing) return;
     setSyncing(true);
     try {
-      // Fetch in batches to reach ~200 as per requirement example
       const totalToSync = 200; 
       setSyncProgress({ current: 0, total: totalToSync });
 
-      // Simulate batches
       for (let batch = 0; batch < 4; batch++) {
-        const response = await axios.get('/api/quotes/random?limit=50');
-        const quotes = response.data;
+        const response = await axios.get(`https://dummyjson.com/quotes?limit=50&skip=${batch * 50}`);
+        const quotes = response.data.quotes.map((q: any) => ({
+          _id: String(q.id),
+          content: q.quote,
+          author: q.author,
+          authorSlug: q.author.toLowerCase().replace(/[^a-z0-9]+/g, '-'),
+          tags: ['Life']
+        }));
 
         for (let i = 0; i < quotes.length; i++) {
           const q = quotes[i];
-          
-          // Check if exists
           const exists = await checkQuoteExists(q._id);
           if (exists) {
             setSyncProgress(prev => ({ ...prev, current: prev.current + 1 }));
             continue;
           }
 
-          // Get resolved image URL - using safe keywords and quote ID for uniqueness
-          const safeKeyword = PHOTO_KEYWORDS[i % PHOTO_KEYWORDS.length];
-          const imageUrl = `https://loremflickr.com/1920/1080/${safeKeyword}?random=${q._id}`;
-          
           try {
-            const resolveRes = await axios.get(`/api/resolve-image?url=${encodeURIComponent(imageUrl)}`);
-            const finalImageUrl = resolveRes.data.url;
-
             await saveQuote({
               quoteId: q._id,
               quoteText: q.content,
@@ -183,20 +164,19 @@ export const Collections: React.FC = () => {
               authorSlug: q.authorSlug,
               category: q.tags[0] || 'Life',
               tags: q.tags,
-              imageUrl: finalImageUrl,
+              imageUrl: "",
             });
           } catch (imgErr) {
-            console.error('Image resolution failed', imgErr);
+            console.error('Save failed', imgErr);
           }
 
           setSyncProgress(prev => ({ ...prev, current: prev.current + 1 }));
         }
       }
 
-      // Reload authors
       const authorList = await getAllAuthors();
       setAuthors(authorList);
-      addToast('Sync complete!', 'success');
+      addToast('✅ Collections Sync complete!', 'success');
     } catch (err) {
       console.error(err);
       addToast('Sync failed', 'error');
@@ -212,12 +192,22 @@ export const Collections: React.FC = () => {
     try {
       if (isFallback) {
         let quotesData = [];
+        const res = await axios.get('https://dummyjson.com/quotes?limit=100');
+        const allQuotes = res.data.quotes.map((q: any) => ({
+          _id: String(q.id),
+          content: q.quote,
+          author: q.author,
+          authorSlug: q.author.toLowerCase().replace(/[^a-z0-9]+/g, '-'),
+          tags: [type === 'category' ? name : 'Life']
+        }));
+        
         if (type === 'category') {
-          const res = await axios.get(`/api/quotes?tags=${name.toLowerCase()}&limit=20`);
-          quotesData = res.data.results;
+          quotesData = allQuotes.slice(0, 20);
         } else {
-          const res = await axios.get(`/api/quotes?author=${slug}&limit=20`);
-          quotesData = res.data.results;
+          quotesData = allQuotes.filter((q: any) => q.authorSlug === slug);
+          if (quotesData.length === 0) {
+            quotesData = allQuotes.slice(0, 10);
+          }
         }
         
         const mappedQuotes = quotesData.map((q: any) => ({
@@ -227,8 +217,7 @@ export const Collections: React.FC = () => {
           author: q.author,
           authorSlug: q.authorSlug,
           category: q.tags[0] || 'Life',
-          // Use safe keywords to ensure no human faces
-          imageUrl: `https://loremflickr.com/1920/1080/${PHOTO_KEYWORDS[Math.floor(Math.random() * PHOTO_KEYWORDS.length)]}?random=${q._id}`
+          imageUrl: ""
         }));
         setCollectionQuotes(mappedQuotes);
       } else {
@@ -256,43 +245,49 @@ export const Collections: React.FC = () => {
   const handleDownloadSelected = async () => {
     if (selectedQuoteIds.length === 0) return;
     
-    addToast('Preparing ZIP...', 'info');
+    if (!canDownload(selectedQuoteIds.length)) return;
+
+    addToast('Preparing your offline collection ZIP...', 'info');
     const zip = new JSZip();
     const folder = zip.folder("SoulScript-Collection");
 
     const selectedQuotes = collectionQuotes.filter(q => selectedQuoteIds.includes(q.id));
-
-    // In a real app with many images, we'd need to fetch blobs.
-    // For now, let's just add a readme or try to fetch if CORS allows.
-    // However, the requirement says "Download selected as ZIP"
-    // Usually this means the images.
     
     try {
       for (let i = 0; i < selectedQuotes.length; i++) {
         const q = selectedQuotes[i];
-        // We can't easily capture canvases for all selected cards without rendering them hiddenly
-        // But we can try to fetch the raw images
-        const response = await fetch(q.imageUrl);
-        const blob = await response.blob();
-        folder?.file(`${q.author}-${i}.jpg`, blob);
+        
+        // Generate high-resolution, brand-consistent quote cards natively and locally
+        const canvas = await drawQuoteCardCanvas(q.quoteText || q.quote || '', q.author);
+        if (canvas) {
+          const blob = await new Promise<Blob | null>(resolve => canvas.toBlob(resolve, 'image/png'));
+          if (blob) {
+            folder?.file(`${q.author.replace(/[^a-z0-9]/gi, '_')}-${i}.png`, blob);
+          }
+        }
       }
 
       const content = await zip.generateAsync({ type: "blob" });
       const url = URL.createObjectURL(content);
       const link = document.createElement('a');
       link.href = url;
-      link.download = `SoulScript-${selectedCollection?.name}.zip`;
+      link.download = `SoulScript-Collection-${selectedCollection?.name}.zip`;
       link.click();
-      addToast('Download started!', 'success');
+      
+      addToast('✅ ZIP download started! CORS-free and pixel-perfect.', 'success');
+      setSelectMode(false);
+      setSelectedQuoteIds([]);
     } catch (err) {
-       addToast('Failed to generate ZIP. CORS issues might prevent direct image fetching.', 'error');
+       console.error('Bulk generate zip failed', err);
+       addToast('❌ Failed to generate ZIP collection.', 'error');
     }
   };
 
   if (selectedCollection) {
     return (
-      <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
-        <div className="flex items-center justify-between">
+      <div className="space-y-8 pb-32">
+        {/* Detail Title Header */}
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 border-b border-[var(--border-color)] pb-6 animate-in fade-in slide-in-from-top-4 duration-300">
           <div className="flex items-center gap-4">
             <button 
               onClick={() => {
@@ -300,40 +295,43 @@ export const Collections: React.FC = () => {
                 setSelectMode(false);
                 setSelectedQuoteIds([]);
               }}
-              className="p-3 bg-white/5 hover:bg-white/10 rounded-2xl border border-white/10 transition-all text-[var(--text-secondary)]"
+              className="p-3 bg-white/5 border border-white/10 rounded-2xl text-[var(--text-secondary)] hover:text-white transition-all active:scale-95 cursor-pointer"
             >
               <ArrowLeft size={20} />
             </button>
             <div>
-              <h1 className="text-3xl font-serif font-bold text-[var(--text-primary)]">{selectedCollection.name}</h1>
-              <p className="text-[var(--text-secondary)] text-sm">{collectionQuotes.length} {collectionQuotes.length === 1 ? 'Quote' : 'Quotes'}</p>
+              <p className="text-[10px] font-black tracking-[0.2em] text-indigo-400 uppercase mb-1">
+                {selectedCollection.type === 'category' ? 'Category Collection' : 'Author Collection'}
+              </p>
+              <h1 className="text-3xl md:text-4xl font-serif font-black text-white leading-tight">
+                {selectedCollection.name}
+              </h1>
             </div>
           </div>
 
-          <div className="flex items-center gap-2">
-            {selectMode ? (
-              <>
-                <button 
-                  onClick={() => setSelectMode(false)}
-                  className="px-4 py-2 text-sm font-bold text-gray-400 hover:text-white transition-colors"
-                >
-                  Cancel
-                </button>
-                <button 
-                  onClick={handleDownloadSelected}
-                  disabled={selectedQuoteIds.length === 0}
-                  className="px-6 py-2 gradient-bg rounded-xl text-white text-xs font-black uppercase tracking-widest shadow-lg disabled:opacity-50"
-                >
-                  Download ({selectedQuoteIds.length})
-                </button>
-              </>
-            ) : (
-              <button 
-                onClick={() => setSelectMode(true)}
-                className="p-3 bg-white/5 hover:bg-white/10 rounded-xl border border-white/10 transition-all text-indigo-400"
-                title="Select Mode"
+          <div className="flex gap-3">
+            <button
+              onClick={() => {
+                setSelectMode(!selectMode);
+                setSelectedQuoteIds([]);
+              }}
+              className={cn(
+                "px-6 py-3 border rounded-2xl text-xs font-black uppercase tracking-widest transition-all active:scale-95 cursor-pointer block",
+                selectMode 
+                  ? "bg-purple-600/20 border-purple-500 text-purple-400" 
+                  : "bg-white/5 border-white/10 text-[var(--text-primary)] hover:bg-white/10"
+              )}
+            >
+              {selectMode ? 'Cancel Selection' : 'Select Multiple'}
+            </button>
+
+            {selectMode && selectedQuoteIds.length > 0 && (
+              <button
+                onClick={handleDownloadSelected}
+                className="flex items-center gap-2 px-6 py-3 bg-[#EAB308] text-black hover:bg-[#FACC15] rounded-2xl text-xs font-black uppercase tracking-widest shadow-xl transition-all cursor-pointer"
               >
-                <PlusCircle size={20} />
+                <Download size={16} />
+                <span>Download ZIP ({selectedQuoteIds.length})</span>
               </button>
             )}
           </div>
@@ -349,21 +347,26 @@ export const Collections: React.FC = () => {
             <p className="text-[var(--text-secondary)]">No quotes found in this collection</p>
           </div>
         ) : (
-          <div className="columns-1 sm:columns-2 lg:columns-3 gap-6 space-y-6">
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-3 xl:grid-cols-4 gap-2 md:gap-6 pt-0 md:pt-4">
             {collectionQuotes.map((q) => (
-              <QuoteCard 
-                key={q.id}
-                quote={{ content: q.quoteText, author: q.author, _id: q.quoteId }}
-                image={q.imageUrl}
-                category={q.category}
-                selectionMode={selectMode}
-                isSelected={selectedQuoteIds.includes(q.id)}
-                onToggleSelect={() => {
-                  setSelectedQuoteIds(prev => 
-                    prev.includes(q.id) ? prev.filter(id => id !== q.id) : [...prev, q.id]
-                  );
-                }}
-              />
+              <div 
+                key={q.id} 
+                className="relative" 
+                style={{ zIndex: activeMenuQuoteId === q.id ? 150 : 1 }}
+              >
+                <QuoteCard 
+                  quote={{ content: q.quoteText || q.quote, author: q.author, _id: q.quoteId || q.id }}
+                  selectionMode={selectMode}
+                  isSelected={selectedQuoteIds.includes(q.id)}
+                  onToggleSelect={() => {
+                    setSelectedQuoteIds(prev => 
+                      prev.includes(q.id) ? prev.filter(id => id !== q.id) : [...prev, q.id]
+                    );
+                  }}
+                  onMenuOpenChange={(isOpen) => setActiveMenuQuoteId(isOpen ? q.id : null)}
+                  className="h-auto aspect-[3/4]"
+                />
+              </div>
             ))}
           </div>
         )}
@@ -385,7 +388,7 @@ export const Collections: React.FC = () => {
       </div>
 
       {syncing && (
-        <div className="p-6 bg-indigo-500/10 border border-indigo-500/20 rounded-3xl flex items-center gap-4">
+        <div className="p-6 bg-indigo-500/10 border border-indigo-500/20 rounded-3xl flex items-center gap-4 animate-in fade-in duration-300">
           <Loader2 className="animate-spin text-indigo-400" size={24} />
           <div className="flex-1">
             <div className="flex justify-between text-xs font-black uppercase tracking-widest text-indigo-400 mb-2">
@@ -412,19 +415,19 @@ export const Collections: React.FC = () => {
         </h2>
         
         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3 md:gap-4 px-1">
-          {CATEGORIES.map((cat) => (
+          {CATEGORIES.filter(cat => cat.id !== 'all').map((cat) => (
             <motion.button
-              key={cat.name}
+              key={cat.id}
               whileHover={{ scale: 1.05 }}
               whileTap={{ scale: 0.95 }}
-              onClick={() => handleOpenCollection('category', cat.name)}
+              onClick={() => handleOpenCollection('category', cat.label)}
               className={cn(
                 "relative group w-full h-24 sm:h-28 rounded-2xl border border-white/10 overflow-hidden shadow-xl"
               )}
             >
-              <div className={cn("absolute inset-0 bg-linear-to-br opacity-80 group-hover:opacity-100 transition-opacity", cat.gradient)} />
+              <div className={cn("absolute inset-0 bg-gradient-to-br opacity-80 group-hover:opacity-100 transition-opacity", getCategoryGradient(cat.id))} />
               <div className="relative p-3 h-full flex flex-col justify-end">
-                <span className="text-sm font-bold text-white drop-shadow-md leading-tight">{cat.name}</span>
+                <span className="text-sm font-bold text-white drop-shadow-md leading-tight">{cat.label}</span>
               </div>
             </motion.button>
           ))}
@@ -472,7 +475,7 @@ export const Collections: React.FC = () => {
           </button>
           {ALPHABET.map(letter => (
             <button
-              key={letter}
+               key={letter}
               onClick={() => setActiveLetter(activeLetter === letter ? null : letter)}
               className={cn(
                 "w-8 h-8 rounded-full text-xs font-bold flex items-center justify-center transition-all",
@@ -497,7 +500,7 @@ export const Collections: React.FC = () => {
         )}
 
         {loading ? (
-          <div className="grid grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
             {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map(i => (
               <div key={i} className="aspect-[4/5] glass border border-white/5 rounded-2xl animate-pulse" />
             ))}
@@ -517,13 +520,9 @@ export const Collections: React.FC = () => {
                 onClick={() => handleOpenCollection('author', author.name, author.slug)}
                 className="group bg-neutral-900/40 backdrop-blur-xl border border-white/10 hover:border-indigo-500/30 rounded-2xl sm:rounded-3xl p-3 flex flex-col gap-3 text-left transition-all shadow-2xl"
               >
-                <div className="relative aspect-video rounded-xl sm:rounded-2xl overflow-hidden bg-black/40">
-                  <img 
-                    src={author.firstImage} 
-                    alt={author.name}
-                    className="w-full h-full object-cover opacity-60 group-hover:opacity-100 transition-opacity duration-700" 
-                  />
-                  <div className="absolute inset-0 bg-linear-to-t from-black/80 to-transparent" />
+                {/* Clean, gold-on-premium gradient placeholder for authors */}
+                <div className="relative aspect-video rounded-xl sm:rounded-2xl overflow-hidden bg-gradient-to-br from-[#160824] to-[#340B2D] border border-white/5 flex items-center justify-center">
+                  <span className="font-serif italic text-3xl text-[#FFD700] opacity-80 group-hover:scale-110 transition-transform duration-500 select-none">❝</span>
                   <div className="absolute bottom-2 right-2">
                     <div className="p-1.5 bg-indigo-600 rounded-lg text-white shadow-lg shadow-indigo-600/40">
                       <ChevronRight size={14} />
@@ -540,12 +539,12 @@ export const Collections: React.FC = () => {
         )}
       </section>
       
-      {/* Retry/Sync Button if authors list is small or user wants fresh data */}
+      {/* Retry/Sync Button */}
       {!syncing && (
         <div className="flex justify-center pt-8">
           <button 
             onClick={syncQuotes}
-            className="flex items-center gap-2 px-6 py-3 bg-white/5 hover:bg-white/10 rounded-full border border-white/10 text-xs font-black uppercase tracking-widest text-indigo-400 transition-all"
+            className="flex items-center gap-2 px-6 py-3 bg-white/5 hover:bg-white/10 rounded-full border border-white/10 text-xs font-black uppercase tracking-widest text-indigo-400 transition-all cursor-pointer"
           >
             <PlusCircle size={16} />
             {isFallback ? 'Fetch More Authors' : 'Sync More Quotes'}

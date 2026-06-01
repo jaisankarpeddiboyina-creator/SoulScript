@@ -2,28 +2,22 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
   Search, 
-  LayoutGrid, 
-  Smartphone, 
   Loader2, 
   X,
   FilterX, 
-  ArrowUpDown,
-  Palette,
-  RefreshCw,
-  CheckSquare,
-  Square,
-  Download,
-  Trash2,
-  Share2,
+  Download, 
+  Share2, 
   FileArchive,
-  Image as ImageIcon
+  Image as ImageIcon,
+  RefreshCw,
+  Square
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { useAuth } from '../context/AuthContext';
 import { QuoteCard, QuoteCardHandle } from '../components/QuoteCard';
 import JSZip from 'jszip';
-import { Quote, ViewMode, QuoteLength, QuoteCategory, QuoteSort } from '../types';
-import { CATEGORIES, CATEGORY_MAP, FALLBACK_QUOTES, SORT_OPTIONS, PHOTO_KEYWORDS } from '../constants';
+import { Quote, QuoteCategory } from '../types';
+import { CATEGORIES, FALLBACK_QUOTES } from '../constants';
 import { cn } from '../lib/utils';
 import { pocketbaseService } from '../services/pocketbase';
 
@@ -32,9 +26,7 @@ export const Explore: React.FC = () => {
     exploreFilters, 
     viewMode, 
     addToast,
-    stagedFilters,
     setStagedFilters,
-    filteredCount,
     setFilteredCount,
     isSelectMode,
     setIsSelectMode
@@ -45,16 +37,15 @@ export const Explore: React.FC = () => {
 
   const [allQuotes, setAllQuotes] = useState<Quote[]>([]);
   const [filteredQuotes, setFilteredQuotes] = useState<Quote[]>([]);
-  const [images, setImages] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(false);
   const [page, setPage] = useState(1);
   const [hasMore, setHasMore] = useState(true);
-  const usedLocks = useRef<Set<number>>(new Set());
 
   // Selection State
   const [selectedQuoteIds, setSelectedQuoteIds] = useState<Set<string>>(new Set());
   const [isBulkDownloading, setIsBulkDownloading] = useState(false);
   const [showDownloadOptions, setShowDownloadOptions] = useState(false);
+  const [activeMenuQuoteId, setActiveMenuQuoteId] = useState<string | null>(null);
   const cardRefs = useRef<Record<string, QuoteCardHandle | null>>({});
 
   // Reset selection when exiting select mode
@@ -85,11 +76,10 @@ export const Explore: React.FC = () => {
     setShowDownloadOptions(false);
     if (selectedQuoteIds.size === 0) return;
     
-    // Check download limits for the whole batch
     if (!canDownload(selectedQuoteIds.size)) return;
     
     setIsBulkDownloading(true);
-    addToast('Preparing your cards...', 'info');
+    addToast('Preparing your elegant cards...', 'info');
 
     try {
       if (format === 'zip') {
@@ -117,7 +107,7 @@ export const Explore: React.FC = () => {
         link.download = `SoulScript-Bulk-${Date.now()}.zip`;
         link.click();
       } else {
-        // Gallery mode: individual downloads with delay
+        // Individual downloads
         for (const id of Array.from(selectedQuoteIds)) {
           const handle = cardRefs.current[id];
           if (handle) {
@@ -132,17 +122,15 @@ export const Explore: React.FC = () => {
               link.href = canvas.toDataURL('image/png');
               link.download = filename;
               link.click();
-              // Small delay to ensure browser handles multiple downloads
-              await new Promise(r => setTimeout(r, 800));
+              await new Promise(r => setTimeout(r, 400));
             }
           }
         }
       }
       
-      // Increment counter by the amount of selected quotes
       await incrementDownload(selectedQuoteIds.size);
       
-      addToast('Downloaded successfully', 'success');
+      addToast('✅ Downloaded cards successfully!', 'success');
       setIsSelectMode(false);
     } catch (err) {
       console.error('Bulk download failed', err);
@@ -161,13 +149,11 @@ export const Explore: React.FC = () => {
     try {
       if (isNewCategory) {
         setAllQuotes([]);
-        setImages({});
-        usedLocks.current.clear();
       }
 
       const limit = 20;
       const skip = (pageNum - 1) * limit;
-      const url = `/api/dummy/quotes?limit=${limit}&skip=${skip}`;
+      const url = `https://dummyjson.com/quotes?limit=${limit}&skip=${skip}`;
 
       const response = await fetch(url, { signal: controller.signal });
       clearTimeout(timeoutId);
@@ -184,22 +170,16 @@ export const Explore: React.FC = () => {
           dateAdded: new Date(Date.now() - q.id * 1000000).toISOString()
         })) as Quote[];
         
-        // Save to PocketBase if logged in
+        // Save to PocketBase database cleanly with empty imageUrl
         if (isLoggedIn) {
-          const isMobile = window.innerWidth < 768;
-          newResults.forEach(async (quote, idx) => {
-            const categoryOptions = CATEGORY_MAP[category] || CATEGORY_MAP.all;
-            const catKeyword = categoryOptions[idx % categoryOptions.length];
-            const lock = Math.floor(Math.random() * 10000);
-            const imageUrl = `https://loremflickr.com/${isMobile ? "800/1000" : "1920/1080"}/${encodeURIComponent(catKeyword)}?lock=${lock}&cors=1`;
-            
+          newResults.forEach(async (quote) => {
             await pocketbaseService.saveQuote({
               quoteId: quote._id,
               quoteText: quote.content,
               author: quote.author,
               category: quote.tags[0],
               tags: quote.tags,
-              imageUrl
+              imageUrl: ""
             });
           });
         }
@@ -212,10 +192,8 @@ export const Explore: React.FC = () => {
         });
         
         setHasMore(skip + limit < data.total);
-        generateImagesForQuotes(newResults, isNewCategory ? 0 : allQuotes.length);
       }
     } catch (error) {
-      // Silent error handling for NetworkError or API failure
       const fallbackList = category === 'all' 
         ? Object.values(FALLBACK_QUOTES).flat() 
         : (FALLBACK_QUOTES[category] || FALLBACK_QUOTES.motivational);
@@ -229,7 +207,6 @@ export const Explore: React.FC = () => {
       if (isNewCategory || allQuotes.length === 0) {
         setAllQuotes(mappedFallbacks);
         setHasMore(false);
-        generateImagesForQuotes(mappedFallbacks, 0);
       }
       addToast('Using offline database (Network Slow)', 'info');
     } finally {
@@ -237,30 +214,6 @@ export const Explore: React.FC = () => {
     }
   };
 
-
-  const generateImagesForQuotes = (newQuotes: Quote[], startIndex: number) => {
-    const updatedImages: Record<string, string> = { ...images };
-    
-    const isMobile = window.innerWidth < 768;
-    newQuotes.forEach((quote, i) => {
-      const idx = startIndex + i;
-      // Use the complete curated list to rotate through all cards
-      const keyword = PHOTO_KEYWORDS[idx % PHOTO_KEYWORDS.length];
-      
-      // Technique 1 & 3: Unique lock per quote, track used locks
-      let lock = Math.floor(Math.random() * 10000);
-      while (usedLocks.current.has(lock)) {
-        lock = Math.floor(Math.random() * 10000);
-      }
-      usedLocks.current.add(lock);
-      
-      updatedImages[quote._id] = `https://loremflickr.com/${isMobile ? "800/1000" : "1920/1080"}/${encodeURIComponent(keyword)}?lock=${lock}&cors=1`;
-    });
-    
-    setImages(prev => ({ ...prev, ...updatedImages }));
-  };
-
-  // Shuffling logic
   const shuffleArray = (array: any[]) => {
     const shuffled = [...array];
     for (let i = shuffled.length - 1; i > 0; i--) {
@@ -274,12 +227,11 @@ export const Explore: React.FC = () => {
     setFilteredCount(filteredQuotes.length);
   }, [filteredQuotes, setFilteredCount]);
 
-  // Sync staged filters logic (optional if handled in AppContext, but let's keep it robust)
   useEffect(() => {
     setStagedFilters(exploreFilters);
   }, [exploreFilters, setStagedFilters]);
 
-  // Filter Pipeline (Filtered on exploreFilters, not staged)
+  // Filter Pipeline
   useEffect(() => {
     let result = [...allQuotes];
 
@@ -319,7 +271,6 @@ export const Explore: React.FC = () => {
 
   useEffect(() => {
     setPage(1);
-    usedLocks.current.clear();
     fetchQuotes(1, true);
   }, [category]);
 
@@ -328,13 +279,6 @@ export const Explore: React.FC = () => {
       fetchQuotes(page);
     }
   }, [page]);
-
-  const isFilterActive = category !== 'all' || search !== '' || lengthFilter !== 'all' || sort !== 'random';
-
-  const resetFilters = () => {
-    // This is now in AppContext, but we can call it if needed. 
-    // However, Explore.tsx might have been using it directly.
-  };
 
   const observer = useRef<IntersectionObserver | null>(null);
   const lastQuoteElementRef = useCallback((node: HTMLDivElement | null) => {
@@ -348,7 +292,6 @@ export const Explore: React.FC = () => {
     if (node) observer.current.observe(node);
   }, [loading, hasMore, viewMode]);
 
-
   return (
     <div className="space-y-0 md:space-y-4">
       {/* Content Area */}
@@ -359,7 +302,7 @@ export const Explore: React.FC = () => {
               {loading && allQuotes.length === 0 ? (
                 // Skeleton Grid
                 Array.from({ length: 12 }).map((_, i) => (
-                  <div key={`skeleton-${i}`} className="w-full h-[280px] md:h-[400px] shimmer-bg rounded-2xl" />
+                  <div key={`skeleton-${i}`} className="w-full h-[280px] md:h-[400px] shimmer-bg rounded-none" />
                 ))
               ) : filteredQuotes.length > 0 ? (
                 filteredQuotes.map((quote, index) => (
@@ -369,15 +312,16 @@ export const Explore: React.FC = () => {
                     animate={{ opacity: 1, scale: 1 }}
                     exit={{ opacity: 0, scale: 0.9 }}
                     layout
+                    style={{ zIndex: activeMenuQuoteId === quote._id ? 150 : 1 }}
                   >
                     <QuoteCard 
                       ref={el => cardRefs.current[quote._id] = el}
                       quote={quote} 
-                      image={images[quote._id]} 
                       category={quote.tags[0]}
                       selectionMode={isSelectMode}
                       isSelected={selectedQuoteIds.has(quote._id)}
                       onToggleSelect={() => toggleSelect(quote._id)}
+                      onMenuOpenChange={(isOpen) => setActiveMenuQuoteId(isOpen ? quote._id : null)}
                       className={cn(
                         "h-[260px] md:h-auto md:aspect-auto",
                         quote.content.length > 150 ? "md:aspect-[3/5]" : quote.content.length < 60 ? "md:aspect-square" : "md:aspect-[3/4]"
@@ -394,15 +338,9 @@ export const Explore: React.FC = () => {
                     <div>
                       <h3 className="text-2xl font-bold mb-2">No quotes found</h3>
                       <p className="text-gray-400 font-medium leading-relaxed">
-                        We couldn't find any quotes matching your current filters. Try adjusting your search or length.
+                        We couldn't find any quotes matching your current filters. Try adjusting your search query.
                       </p>
                     </div>
-                    <button 
-                      onClick={resetFilters}
-                      className="px-8 py-3 gradient-bg rounded-2xl font-bold shadow-xl shadow-indigo-500/20 active:scale-95 transition-all"
-                    >
-                      Reset All Filters
-                    </button>
                   </div>
                 </div>
               )}
@@ -443,7 +381,6 @@ export const Explore: React.FC = () => {
               <QuoteCard 
                 ref={el => cardRefs.current[quote._id] = el}
                 quote={quote} 
-                image={images[quote._id]} 
                 category={quote.tags[0]}
                 variant="reels"
                 selectionMode={isSelectMode}
@@ -481,7 +418,6 @@ export const Explore: React.FC = () => {
           )}
         </div>
       )}
-
 
       {loading && allQuotes.length > 0 && viewMode === 'grid' && (
         <div className="flex justify-center py-12">
@@ -582,7 +518,7 @@ export const Explore: React.FC = () => {
                   </div>
                   <div className="text-left">
                     <p className="text-sm font-bold text-[var(--text-primary)]">Download as ZIP</p>
-                    <p className="text-[10px] text-gray-500 font-medium tracking-tight">Best for desktop & organizing</p>
+                    <p className="text-[10px] text-gray-500 font-medium tracking-tight">Best for storage & offline share</p>
                   </div>
                 </button>
 
@@ -595,13 +531,13 @@ export const Explore: React.FC = () => {
                   </div>
                   <div className="text-left">
                     <p className="text-sm font-bold text-[var(--text-primary)]">Save to Gallery</p>
-                    <p className="text-[10px] text-gray-500 font-medium tracking-tight">Best for mobile photo sync</p>
+                    <p className="text-[10px] text-gray-500 font-medium tracking-tight">Fastest single download trigger</p>
                   </div>
                 </button>
               </div>
               
               <p className="mt-6 text-[9px] text-center text-gray-500 font-medium leading-relaxed">
-                Rendered with magic. Each image is high definition.
+                Perfect 9:16 high-resolution rendering. Clean & Minimal.
               </p>
             </motion.div>
           </div>
