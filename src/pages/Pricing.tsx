@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Heart, Coffee, Sparkles, Gift, ThumbsUp, Loader2, Award, Check } from 'lucide-react';
+import { Heart, Coffee, Sparkles, Gift, ThumbsUp, Loader2, Award, Check, AlertCircle } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useApp } from '../context/AppContext';
 import confetti from 'canvas-confetti';
@@ -22,6 +22,7 @@ export const Pricing: React.FC<PricingProps> = ({ onSignInOpen }) => {
   
   // Modal states
   const [successModal, setSuccessModal] = useState<{ isOpen: boolean; amount: number } | null>(null);
+  const [deactivatedModalOpen, setDeactivatedModalOpen] = useState<boolean>(false);
 
   const presets = [20, 30, 49, 99];
 
@@ -58,12 +59,11 @@ export const Pricing: React.FC<PricingProps> = ({ onSignInOpen }) => {
     setIsSubmitting(true);
 
     try {
-      // Simulate Razorpay / UPI secure sandbox checkout flow
-      await new Promise((resolve) => setTimeout(resolve, 1500));
+      // Simulate connection to secure sandbox checkout flow for feedback
+      await new Promise((resolve) => setTimeout(resolve, 800));
       
-      triggerConfettiCelebration();
-      setSuccessModal({ isOpen: true, amount: finalAmount });
-      addToast(`🎉 Huge thank you for contributing ₹${finalAmount}!`, 'success');
+      setDeactivatedModalOpen(true);
+      addToast('Information: Support portal is currently inactive', 'info');
       
       // Reset support form
       setCustomAmountInput('');
@@ -72,7 +72,7 @@ export const Pricing: React.FC<PricingProps> = ({ onSignInOpen }) => {
       setSupportMessage('');
     } catch (e: any) {
       console.error(e);
-      addToast('Contribution simulation encounters an issue. Please try again!', 'error');
+      addToast('Simulation encountered an issue. Please try again!', 'error');
     } finally {
       setIsSubmitting(false);
     }
@@ -366,6 +366,62 @@ export const Pricing: React.FC<PricingProps> = ({ onSignInOpen }) => {
                     className="w-full py-3 bg-gradient-to-r from-purple-500 to-indigo-500 hover:from-purple-600 hover:to-indigo-600 text-white font-bold rounded-xl transition-all shadow-lg text-xs uppercase tracking-widest"
                   >
                     You are AWESOME!
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Support portal paused/deactivated dialog */}
+      <AnimatePresence>
+        {deactivatedModalOpen && (
+          <div className="fixed inset-0 z-[130] flex items-center justify-center p-4">
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setDeactivatedModalOpen(false)}
+              className="absolute inset-0 bg-black/85 backdrop-blur-sm"
+            />
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 30 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 30 }}
+              className="relative w-full max-w-md border border-amber-500/20 rounded-3xl p-8 text-center bg-[#0d0912]/95 shadow-[0_20px_50px_rgba(245,158,11,0.2)] overflow-hidden"
+              onClick={(e) => e.stopPropagation()}
+            >
+              {/* Background gradient decoration blur */}
+              <div className="absolute -top-24 -left-20 w-48 h-48 rounded-full bg-amber-500/10 blur-3xl pointer-events-none" />
+              <div className="absolute -bottom-24 -right-20 w-48 h-48 rounded-full bg-rose-500/10 blur-3xl pointer-events-none" />
+
+              <div className="relative flex flex-col items-center space-y-5">
+                <div className="w-16 h-16 rounded-full bg-amber-500/10 flex items-center justify-center text-amber-500 border border-amber-500/20 shadow-lg shadow-amber-500/5 mb-1 animate-pulse">
+                  <AlertCircle size={32} />
+                </div>
+                
+                <h3 className="text-2xl font-serif font-black text-white">Donations Paused</h3>
+                
+                <p className="text-zinc-200 text-sm leading-relaxed text-center">
+                  Thank you so much for your generosity! To ensure SoulScript remains forever accessible and free of overhead, we have <span className="text-amber-400 font-extrabold">deactivated direct payment channels</span>.
+                </p>
+
+                <div className="p-4 rounded-xl bg-white/[0.02] border border-white/5 text-left space-y-2">
+                  <p className="text-[11px] text-zinc-400 leading-relaxed">
+                    🌟 SoulScript is 100% free and fully funded for the foreseeable future. We require no direct payment.
+                  </p>
+                  <p className="text-[11px] text-zinc-400 leading-relaxed">
+                    💬 Your daily practice, feedback, and beautiful rating reviews are all the true support we ask!
+                  </p>
+                </div>
+
+                <div className="pt-2 w-full">
+                  <button
+                    onClick={() => setDeactivatedModalOpen(false)}
+                    className="w-full py-3.5 bg-gradient-to-r from-amber-500 to-indigo-600 hover:from-amber-600 hover:to-indigo-700 text-white font-serif font-black rounded-xl transition-all shadow-md text-xs uppercase tracking-widest active:scale-[0.98]"
+                  >
+                    Acknowledged, Thank you! ☕
                   </button>
                 </div>
               </div>
