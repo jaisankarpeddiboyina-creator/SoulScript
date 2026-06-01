@@ -57,9 +57,11 @@ export const drawQuoteCardCanvas = async (
   const maxLineWidth = 900; // 90px on left/right margins for safety zone
   let lines: string[] = [];
   let fontSize = 90; // Starting font size for compact quotes
-  const activeFont = fontName || 'Georgia';
 
   // Iterative word wrapper solver to dynamically fit any quote into up to 4 lines maximum
+  const cleanedFont = fontName ? fontName.replace(/['"“”]+/g, '').split(',')[0].trim() : 'Georgia';
+  const activeFont = cleanedFont || 'Georgia';
+
   while (fontSize >= 40) {
     ctx.font = `italic 500 ${fontSize}px "${activeFont}", Georgia, "Playfair Display", serif`;
     lines = [];
@@ -616,22 +618,22 @@ export const QuoteCard = forwardRef<QuoteCardHandle, QuoteCardProps>(({
   const getDynamicFontSizeStyle = (text: string) => {
     const len = text.length;
     if (isReels) {
-      if (len < 60) return 'text-3xl md:text-5xl';
-      if (len < 120) return 'text-2xl md:text-4xl';
-      if (len < 200) return 'text-xl md:text-3xl';
-      return 'text-lg md:text-2xl';
+      if (len < 60) return 'text-2xl sm:text-3xl md:text-5xl';
+      if (len < 120) return 'text-xl sm:text-2xl md:text-4xl';
+      if (len < 200) return 'text-lg sm:text-xl md:text-3xl';
+      return 'text-base sm:text-lg md:text-2xl';
     }
     if (isPreview) {
-      if (len < 60) return 'text-2xl md:text-3xl';
-      if (len < 120) return 'text-xl md:text-2xl';
-      if (len < 200) return 'text-lg md:text-xl';
-      return 'text-sm md:text-base';
+      if (len < 60) return 'text-lg sm:text-xl md:text-3xl';
+      if (len < 120) return 'text-base sm:text-lg md:text-2xl';
+      if (len < 200) return 'text-sm sm:text-base md:text-xl';
+      return 'text-xs sm:text-sm md:text-base';
     }
     // Default Grid
-    if (len < 60) return 'text-xl md:text-2xl';
-    if (len < 120) return 'text-lg md:text-xl';
-    if (len < 200) return 'text-base md:text-lg';
-    return 'text-sm md:text-base';
+    if (len < 60) return 'text-sm sm:text-base md:text-2xl';
+    if (len < 120) return 'text-xs sm:text-sm md:text-xl';
+    if (len < 200) return 'text-[11px] sm:text-xs md:text-lg';
+    return 'text-[10px] sm:text-[11px] md:text-base';
   };
 
   return (
@@ -647,7 +649,8 @@ export const QuoteCard = forwardRef<QuoteCardHandle, QuoteCardProps>(({
         }
       }}
       className={cn(
-        "relative rounded-none shadow-2xl transition-all cursor-pointer overflow-hidden aspect-[9/16]",
+        "relative rounded-none shadow-2xl transition-all cursor-pointer overflow-hidden",
+        (!className || !className.includes('aspect-')) && "aspect-[9/16]",
         "bg-gradient-to-b from-[#160824] to-[#340B2D]", // Luxury premium gradient
         isReels ? "h-full w-full" : "w-full",
         selectionMode && "ring-offset-2 ring-offset-dark-bg transition-shadow duration-300",
@@ -696,18 +699,18 @@ export const QuoteCard = forwardRef<QuoteCardHandle, QuoteCardProps>(({
 
       {/* Main Quote Content exactly as requested by user aesthetic */}
       <div className={cn(
-        "relative flex flex-col items-center justify-between text-center select-none w-full h-full px-8 pb-10 pt-16",
-        isReels ? "pb-36 pt-24" : "pb-12 pt-14"
+        "relative flex flex-col items-center justify-between text-center select-none w-full h-full",
+        isReels ? "sm:px-8 px-4 pb-36 pt-16 sm:pt-24" : "sm:px-8 px-3 sm:pb-12 pb-4 sm:pt-14 pt-6"
       )}>
         {/* TOP CENTER: Quotation symbol, about 5% card height */}
         {localVisibility.showQuoteMarks && (
-          <div className="text-[#FFD700] text-3xl md:text-5xl font-serif leading-none mt-2">
+          <div className="text-[#FFD700] text-xl sm:text-3xl md:text-5xl font-serif leading-none mt-1 sm:mt-2">
             ❝
           </div>
         )}
 
         {/* MIDDLE: Quote text in large white italic serif font with text shadow */}
-        <div className="flex-1 flex items-center justify-center w-full my-4">
+        <div className="flex-1 flex items-center justify-center w-full my-1 sm:my-3">
           {localVisibility.showQuote && (
             <p 
               className={cn(
@@ -725,20 +728,20 @@ export const QuoteCard = forwardRef<QuoteCardHandle, QuoteCardProps>(({
         </div>
 
         {/* BOTTOM ELEMENTS: Short line, Author, and Brand watermark */}
-        <div className="flex flex-col items-center w-full shrink-0 gap-4">
+        <div className="flex flex-col items-center w-full shrink-0 gap-2 sm:gap-4">
           
           {/* BELOW QUOTE: Thin short gold horizontal line centered */}
-          <div className="w-12 border-t-[1.5px] border-[#FFD700]" />
+          <div className="w-8 sm:w-12 border-t-[1.5px] border-[#FFD700]" />
 
           {/* BELOW LINE: Author in small gold capital letters */}
           {localVisibility.showAuthor && quote.author && (
-            <cite className="text-[#FFD700] text-[10px] md:text-xs font-sans font-extrabold tracking-[0.25em] uppercase not-italic">
+            <cite className="text-[#FFD700] text-[9px] sm:text-[10px] md:text-xs font-sans font-extrabold tracking-[0.2em] sm:tracking-[0.25em] uppercase not-italic">
               {quote.author.trim()}
             </cite>
           )}
 
           {/* BOTTOM: Small "SOULSCRIPT" watermark in 40% opacity */}
-          <div className="text-[8px] md:text-[9px] font-black tracking-[0.3em] text-white/40 uppercase font-sans mt-4">
+          <div className="text-[7px] sm:text-[8px] md:text-[9px] font-black tracking-[0.25em] sm:tracking-[0.3em] text-white/40 uppercase font-sans mt-2 sm:mt-4">
             SOULSCRIPT
           </div>
         </div>

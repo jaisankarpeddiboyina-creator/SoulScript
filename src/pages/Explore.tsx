@@ -323,8 +323,8 @@ export const Explore: React.FC = () => {
                       onToggleSelect={() => toggleSelect(quote._id)}
                       onMenuOpenChange={(isOpen) => setActiveMenuQuoteId(isOpen ? quote._id : null)}
                       className={cn(
-                        "h-[260px] md:h-auto md:aspect-auto",
-                        quote.content.length > 150 ? "md:aspect-[3/5]" : quote.content.length < 60 ? "md:aspect-square" : "md:aspect-[3/4]"
+                        "w-full h-auto",
+                        quote.content.length > 150 ? "aspect-[9/16]" : quote.content.length < 60 ? "aspect-[9/13]" : "aspect-[9/15]"
                       )}
                     />
                   </motion.div>

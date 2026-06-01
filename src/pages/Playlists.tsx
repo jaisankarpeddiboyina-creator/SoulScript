@@ -184,7 +184,7 @@ export const Playlists: React.FC = () => {
                     likes: 0
                   }}
                   onMenuOpenChange={(isOpen) => setActiveMenuQuoteId(isOpen ? quote.id : null)}
-                  className="h-auto aspect-[3/4]"
+                  className="w-full h-auto aspect-[9/15]"
                   // Overriding menu options for playlist
                   customMenuOptions={[
                     {

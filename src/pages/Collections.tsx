@@ -364,7 +364,7 @@ export const Collections: React.FC = () => {
                     );
                   }}
                   onMenuOpenChange={(isOpen) => setActiveMenuQuoteId(isOpen ? q.id : null)}
-                  className="h-auto aspect-[3/4]"
+                  className="w-full h-auto aspect-[9/15]"
                 />
               </div>
             ))}

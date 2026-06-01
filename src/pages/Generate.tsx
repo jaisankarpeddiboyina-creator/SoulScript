@@ -188,7 +188,7 @@ export const Generate: React.FC = () => {
         </div>
 
         <div className="h-auto w-full max-w-lg mx-auto flex flex-col gap-5 pt-4 lg:pt-0">
-           <div className="relative aspect-square w-full group">
+           <div className="relative aspect-[9/16] w-full max-w-[340px] mx-auto group">
               <div className="h-full w-full">
                 <QuoteCard 
                   ref={quoteCardRef}
